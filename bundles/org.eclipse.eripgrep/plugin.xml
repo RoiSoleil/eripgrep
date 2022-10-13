@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension
+         point="org.eclipse.ui.views">
+      <view
+            class="org.eclipse.eripgrep.ui.ERipViewPart"
+            icon="platform:/plugin/org.eclipse.ui/icons/full/etool16/search.png"
+            id="org.eclipse.eripgrep.ERipGrepView"
+            name="ERipGrep"
+            restorable="true">
+      </view>
+   </extension>
+   <extension
+         point="org.eclipse.ui.preferencePages">
+      <page
+            class="org.eclipse.eripgrep.ui.ERipGrepPreferencePage"
+            id="org.eclipse.eripgrep.PreferencePage"
+            name="ERipGrep">
+      </page>
+   </extension>
+   <extension
+         point="org.eclipse.ui.commands">
+      <command
+            defaultHandler="org.eclipse.eripgrep.ui.SearchWithERipGrepHandler"
+            id="org.eclipse.eripgrep.SearchWithERipGrepCommand"
+            name="Search with ERipGrep">
+      </command>
+   </extension>
+   <extension
+         point="org.eclipse.ui.bindings">
+      <key
+            commandId="org.eclipse.eripgrep.SearchWithERipGrepCommand"
+            contextId="org.eclipse.ui.contexts.window"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="CTRL+SHIFT+ALT+G">
+      </key>
+   </extension>
+
+</plugin>
