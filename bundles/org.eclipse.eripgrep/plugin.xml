@@ -4,7 +4,7 @@
    <extension
          point="org.eclipse.ui.views">
       <view
-            class="org.eclipse.eripgrep.ui.ERipViewPart"
+            class="org.eclipse.eripgrep.ui.ERipGrepViewPart"
             icon="platform:/plugin/org.eclipse.ui/icons/full/etool16/search.png"
             id="org.eclipse.eripgrep.ERipGrepView"
             name="ERipGrep"

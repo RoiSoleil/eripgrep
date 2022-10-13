@@ -16,7 +16,7 @@ public class SearchWithERipGrepHandler extends AbstractHandler {
     if(selection instanceof TextSelection && !((TextSelection)selection).isEmpty()) {
       String text = ((TextSelection) selection).getText();
       try {
-        ERipViewPart eRipViewPart = (ERipViewPart) PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage().showView(ERipViewPart.ID);
+        ERipGrepViewPart eRipViewPart = (ERipGrepViewPart) PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage().showView(ERipGrepViewPart.ID);
         eRipViewPart.searchFor(text);
       } catch (PartInitException e) {
         e.printStackTrace();
