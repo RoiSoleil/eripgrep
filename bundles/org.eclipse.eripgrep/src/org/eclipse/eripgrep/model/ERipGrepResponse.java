@@ -1,12 +1,11 @@
 package org.eclipse.eripgrep.model;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 public class ERipGrepResponse {
 
-  private Set<SearchProject> searchProjects = new HashSet<>();
-  
+  private Set<SearchProject> searchProjects = new LinkedHashSet<>();
+
   public Set<SearchProject> getSearchProjects() {
     return searchProjects;
   }

@@ -1,5 +1,6 @@
 package org.eclipse.eripgrep.model;
 
+import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.eripgrep.ERipGrepProgressListener;
 
 public class ERipSearchRequest {
@@ -7,7 +8,8 @@ public class ERipSearchRequest {
   private String text;
   private boolean caseSensitive = true;
   private ERipGrepProgressListener listener;
-  
+  private IProgressMonitor progressMonitor;
+
   public String getText() {
     return text;
   }
@@ -27,8 +29,16 @@ public class ERipSearchRequest {
   public ERipGrepProgressListener getListener() {
     return listener;
   }
-  
+
   public void setListener(ERipGrepProgressListener listener) {
     this.listener = listener;
+  }
+
+  public IProgressMonitor getProgressMonitor() {
+    return progressMonitor;
+  }
+
+  public void setProgressMonitor(IProgressMonitor progressMonitor) {
+    this.progressMonitor = progressMonitor;
   }
 }
