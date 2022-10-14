@@ -4,9 +4,9 @@ import java.util.*;
 
 public class ERipGrepResponse {
 
-  private Set<SearchProject> searchProjects = new LinkedHashSet<>();
+  private List<SearchProject> searchProjects = new ArrayList<>();
 
-  public Set<SearchProject> getSearchProjects() {
+  public List<SearchProject> getSearchProjects() {
     return searchProjects;
   }
 

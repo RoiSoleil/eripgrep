@@ -1,14 +1,26 @@
 package org.eclipse.eripgrep;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
-import org.eclipse.core.resources.*;
+import org.eclipse.core.resources.IProject;
+import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.core.runtime.preferences.*;
-import org.eclipse.eripgrep.model.*;
+import org.eclipse.core.runtime.preferences.IEclipsePreferences;
+import org.eclipse.core.runtime.preferences.InstanceScope;
+import org.eclipse.eripgrep.model.ERipGrepResponse;
+import org.eclipse.eripgrep.model.ERipSearchRequest;
+import org.eclipse.eripgrep.model.MatchingFile;
+import org.eclipse.eripgrep.model.MatchingLine;
+import org.eclipse.eripgrep.model.SearchProject;
 
 public class ERipGrepEngine {
 
@@ -48,7 +60,8 @@ public class ERipGrepEngine {
     return eRipGrepResponse;
   }
 
-  private static SearchProject searchFor(ERipSearchRequest request, ERipGrepResponse response, File ripGrepFile, IProject project) {
+  private static SearchProject searchFor(ERipSearchRequest request, ERipGrepResponse response, File ripGrepFile,
+      IProject project) {
     IProgressMonitor progressMonitor = request.getProgressMonitor();
     SearchProject searchProject = new SearchProject();
     searchProject.setProject(project);
@@ -70,7 +83,8 @@ public class ERipGrepEngine {
           while (!progressMonitor.isCanceled() && (line = br.readLine()) != null) {
             if (line.isEmpty()) {
               if (matchingFile != null) {
-                response.getSearchProjects().add(searchProject);
+                if (!response.getSearchProjects().contains(searchProject))
+                  response.getSearchProjects().add(searchProject);
                 matchingFile = null;
                 request.getListener().update(response);
               }
@@ -80,12 +94,16 @@ public class ERipGrepEngine {
               new MatchingLine(matchingFile, line);
             }
           }
-          if (matchingFile != null) {
-            response.getSearchProjects().add(searchProject);
+          if (matchingFile != null && !matchingFile.getMatchingLines().isEmpty()) {
+            if (!response.getSearchProjects().contains(searchProject))
+              response.getSearchProjects().add(searchProject);
             request.getListener().update(response);
           }
         } catch (IOException e) {
           e.printStackTrace();
+        }
+        if(progressMonitor.isCanceled()) {
+          process.destroyForcibly();
         }
       }).start();
       new Thread(() -> {
