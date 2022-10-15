@@ -1,5 +1,9 @@
 package org.eclipse.eripgrep;
 
+import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.RIPGREP_PATH;
+import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.SEARCH_IN_CLOSED_PROJECT;
+import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.THREAD_NUMBER;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -21,6 +25,9 @@ import org.eclipse.eripgrep.model.ERipSearchRequest;
 import org.eclipse.eripgrep.model.MatchingFile;
 import org.eclipse.eripgrep.model.MatchingLine;
 import org.eclipse.eripgrep.model.SearchProject;
+import org.eclipse.jface.preference.PreferenceDialog;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.ui.dialogs.PreferencesUtil;
 
 public class ERipGrepEngine {
 
@@ -28,13 +35,21 @@ public class ERipGrepEngine {
     IProgressMonitor progressMonitor = request.getProgressMonitor();
     ERipGrepResponse eRipGrepResponse = new ERipGrepResponse();
     IEclipsePreferences preferences = InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID);
-    File ripGrepFile = new File(preferences.get("RIPGREP_PATH", null));
-    boolean searchInClosedProject = preferences.getBoolean("SEARCH_IN_CLOSED_PROJECT", true);
+    String ripGrepFilePath = preferences.get(RIPGREP_PATH, null);
+    if (ripGrepFilePath == null) {
+      Display.getDefault().syncExec(() -> {
+        PreferenceDialog dialog = PreferencesUtil.createPreferenceDialogOn(Display.getDefault().getActiveShell(),
+            "org.eclipse.eripgrep.PreferencePage", new String[] { "org.eclipse.eripgrep.PreferencePage" }, null);
+        dialog.open();
+      });
+    }
+    File ripGrepFile = new File(ripGrepFilePath);
+    boolean searchInClosedProject = preferences.getBoolean(SEARCH_IN_CLOSED_PROJECT, true);
     List<IProject> openedProjects = new ArrayList<>();
     List<IProject> closedProjects = new ArrayList<>();
     Arrays.asList(ResourcesPlugin.getWorkspace().getRoot().getProjects())
         .forEach(project -> (project.isOpen() ? openedProjects : closedProjects).add(project));
-    ExecutorService executorService = Executors.newFixedThreadPool(3);
+    ExecutorService executorService = Executors.newFixedThreadPool(preferences.getInt(THREAD_NUMBER, 5));
     try {
       List<IProject> pendindProjects = new ArrayList<>(openedProjects);
       if (searchInClosedProject) {
@@ -102,7 +117,7 @@ public class ERipGrepEngine {
         } catch (IOException e) {
           e.printStackTrace();
         }
-        if(progressMonitor.isCanceled()) {
+        if (progressMonitor.isCanceled()) {
           process.destroyForcibly();
         }
       }).start();

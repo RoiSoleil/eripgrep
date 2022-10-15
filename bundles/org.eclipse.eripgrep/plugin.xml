@@ -36,5 +36,11 @@
             sequence="CTRL+SHIFT+ALT+G">
       </key>
    </extension>
+   <extension
+         point="org.eclipse.core.runtime.preferences">
+      <initializer
+            class="org.eclipse.eripgrep.ERipGrepPreferenceInitializer">
+      </initializer>
+   </extension>
 
 </plugin>
