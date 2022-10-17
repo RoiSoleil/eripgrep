@@ -739,7 +739,6 @@ public class ERipGrepViewPart extends ViewPart {
         styledString.append(t);
         styledString.append(matcher.group(1), DecoratingFileSearchLabelProvider.HIGHLIGHT_STYLE);
         i = matcher.end();
-        System.out.println();
       }
       styledString.append(matString.substring(i, matString.length()));
       return styledString;
