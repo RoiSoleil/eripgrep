@@ -495,6 +495,7 @@ public class ERipGrepViewPart extends ViewPart {
     Button caseSensitiveButton = new Button(composite, SWT.CHECK);
     caseSensitiveButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
     caseSensitiveButton.setText("Case sensitive");
+    caseSensitiveButton.setSelection(InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).getBoolean(CASE_SENSITIVE, true));
     caseSensitiveButton.addSelectionListener(new SelectionAdapter() {
       @Override
       public void widgetSelected(SelectionEvent e) {
@@ -505,6 +506,7 @@ public class ERipGrepViewPart extends ViewPart {
     Button regularExpressionButton = new Button(composite, SWT.CHECK);
     regularExpressionButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
     regularExpressionButton.setText("Regular expression");
+    regularExpressionButton.setSelection(InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).getBoolean(REGULAR_EXPRESSION, false));
     regularExpressionButton.addSelectionListener(new SelectionAdapter() {
       @Override
       public void widgetSelected(SelectionEvent e) {
