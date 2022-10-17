@@ -51,7 +51,11 @@ public class ERipGrepViewPart extends ViewPart {
   private ImageDescriptor alphabSortImage = createImageDescriptorFromURL(
       "platform:/plugin/org.eclipse.jdt.ui/icons/full/elcl16/alphab_sort_co.png");
 
+  private ImageDescriptor groupByFolderImage = createImageDescriptorFromURL(
+      "platform:/plugin/org.eclipse.search/icons/full/etool16/group_by_folder.png");
+
   private static boolean alphabSort = InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).getBoolean(ALPHABETICAL_SORT, false);
+  private static boolean groupByFolder = InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).getBoolean(ALPHABETICAL_SORT, false);
   private static Comparator<Object> matchingFileComparator = new Comparator<Object>() {
 
     @Override
@@ -363,6 +367,18 @@ public class ERipGrepViewPart extends ViewPart {
     sortAlphabeticallyAction.setImageDescriptor(alphabSortImage);
     sortAlphabeticallyAction.setChecked(alphabSort);
     getViewSite().getActionBars().getToolBarManager().add(sortAlphabeticallyAction);
+    Action groupByFolderAction = new Action("Group by folder") {
+      
+      @Override
+      public void run() {
+        alphabSort = !alphabSort;
+        IEclipsePreferences preferences = InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID);
+        preferences.putBoolean(ALPHABETICAL_SORT, alphabSort);
+        treeViewer.refresh();
+      }
+    };
+    sortAlphabeticallyAction.setImageDescriptor(alphabSortImage);
+    getViewSite().getActionBars().getToolBarManager().add(sortAlphabeticallyAction);
   }
 
   private void showMatchingLine(MatchingLine matchingLine) throws PartInitException, IOException, CoreException {
@@ -573,4 +589,7 @@ public class ERipGrepViewPart extends ViewPart {
     }
   }
 
+  private static class Directory {
+    
+  }
 }
