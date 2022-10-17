@@ -564,10 +564,6 @@ public class ERipGrepViewPart extends ViewPart {
       return otherObjects.toArray();
     }
 
-    public Object getElement() {
-      return element;
-    }
-
     public List<?> getAllObjects() {
       return objects;
     }
