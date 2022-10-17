@@ -1,6 +1,7 @@
 package org.eclipse.eripgrep.model;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.eclipse.core.resources.IProject;
 

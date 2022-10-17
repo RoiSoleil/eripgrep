@@ -6,7 +6,8 @@ import org.eclipse.eripgrep.ERipGrepProgressListener;
 public class ERipSearchRequest {
 
   private String text;
-  private boolean caseSensitive = true;
+  private boolean caseSensitive;
+  private boolean regularExpression;
   private ERipGrepProgressListener listener;
   private IProgressMonitor progressMonitor;
 
@@ -24,6 +25,14 @@ public class ERipSearchRequest {
 
   public void setCaseSensitive(boolean caseSensitive) {
     this.caseSensitive = caseSensitive;
+  }
+
+  public boolean isRegularExpression() {
+    return regularExpression;
+  }
+
+  public void setRegularExpression(boolean regularExpression) {
+    this.regularExpression = regularExpression;
   }
 
   public ERipGrepProgressListener getListener() {

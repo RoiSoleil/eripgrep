@@ -1,17 +1,33 @@
 package org.eclipse.eripgrep;
 
-import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.*;
+import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.RIPGREP_PATH;
+import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.SEARCH_IN_CLOSED_PROJECT;
+import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.THREAD_NUMBER;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map.Entry;
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
-import org.eclipse.core.resources.*;
+import org.eclipse.core.resources.IProject;
+import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.core.runtime.preferences.*;
-import org.eclipse.eripgrep.model.*;
+import org.eclipse.core.runtime.preferences.IEclipsePreferences;
+import org.eclipse.core.runtime.preferences.InstanceScope;
+import org.eclipse.eripgrep.model.ERipGrepResponse;
+import org.eclipse.eripgrep.model.ERipSearchRequest;
+import org.eclipse.eripgrep.model.MatchingFile;
+import org.eclipse.eripgrep.model.MatchingLine;
+import org.eclipse.eripgrep.model.RipGrepError;
+import org.eclipse.eripgrep.model.SearchProject;
 import org.eclipse.jface.preference.PreferenceDialog;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.dialogs.PreferencesUtil;
@@ -95,8 +111,15 @@ public class ERipGrepEngine {
       return;
     }
     File projectDirectory = new File(project.getLocation().toOSString());
-    ProcessBuilder processBuilder = new ProcessBuilder(ripGrepFile.getAbsolutePath(), request.getText(),
-        projectDirectory.getAbsolutePath(), "--color", "always", "--pretty", "--fixed-strings");
+    List<String> commands = new ArrayList<>(Arrays.asList(ripGrepFile.getAbsolutePath(), request.getText(),
+        projectDirectory.getAbsolutePath(), "--color", "always", "--pretty"));
+    if (!request.isCaseSensitive()) {
+      commands.add("-i");
+    }
+    if (!request.isRegularExpression()) {
+      commands.add("--fixed-strings");
+    }
+    ProcessBuilder processBuilder = new ProcessBuilder(commands);
     processBuilder.directory(projectDirectory);
     try {
       Process process = processBuilder.start();
@@ -133,8 +156,13 @@ public class ERipGrepEngine {
         try (BufferedReader br = new BufferedReader(
             new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {
           String line;
+          StringBuilder stringBuilder = new StringBuilder();
           while (!progressMonitor.isCanceled() && (line = br.readLine()) != null) {
-            System.err.println(line);
+            stringBuilder.append(line + "\n");
+          }
+          if (!stringBuilder.isEmpty()) {
+            SearchProject searchProject = getOrCreateSearchProject(response, longerProjectByOSString, project.getLocation().toOSString());
+            new RipGrepError(searchProject, stringBuilder.toString());
           }
         } catch (IOException e) {
         }

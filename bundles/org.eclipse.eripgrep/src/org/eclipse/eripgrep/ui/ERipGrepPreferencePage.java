@@ -29,6 +29,8 @@ public class ERipGrepPreferencePage extends FieldEditorPreferencePage implements
   public static final String THREAD_NUMBER = "THREAD_NUMBER";
   public static final String ALPHABETICAL_SORT = "ALPHABETICAL_SORT";
   public static final String GROUP_BY_FOLDER = "GROUP_BY_FOLDER";
+  public static final String CASE_SENSITIVE = "CASE_SENSITIVE";
+  public static final String REGULAR_EXPRESSION = "REGULAR_EXPRESSION";
 
   public ERipGrepPreferencePage() {
   }

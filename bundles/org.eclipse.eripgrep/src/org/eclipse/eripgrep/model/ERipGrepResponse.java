@@ -1,6 +1,6 @@
 package org.eclipse.eripgrep.model;
 
-import java.util.*;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class ERipGrepResponse {

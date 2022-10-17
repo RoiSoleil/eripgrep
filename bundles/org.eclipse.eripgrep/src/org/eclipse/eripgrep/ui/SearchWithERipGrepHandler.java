@@ -1,9 +1,12 @@
 package org.eclipse.eripgrep.ui;
 
-import org.eclipse.core.commands.*;
+import org.eclipse.core.commands.AbstractHandler;
+import org.eclipse.core.commands.ExecutionEvent;
+import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.jface.text.TextSelection;
 import org.eclipse.jface.viewers.ISelection;
-import org.eclipse.ui.*;
+import org.eclipse.ui.PartInitException;
+import org.eclipse.ui.PlatformUI;
 
 /**
  * Handler for SearchWithERipGrepCommand.
@@ -13,11 +16,12 @@ public class SearchWithERipGrepHandler extends AbstractHandler {
   @Override
   public Object execute(ExecutionEvent event) throws ExecutionException {
     ISelection selection = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getSelectionService().getSelection();
-    if(selection instanceof TextSelection && !((TextSelection)selection).isEmpty()) {
+    if (selection instanceof TextSelection && !((TextSelection) selection).isEmpty()) {
       String text = ((TextSelection) selection).getText();
       try {
-        ERipGrepViewPart eRipViewPart = (ERipGrepViewPart) PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage().showView(ERipGrepViewPart.ID);
-        eRipViewPart.searchFor(text);
+        ERipGrepViewPart eRipViewPart = (ERipGrepViewPart) PlatformUI.getWorkbench().getActiveWorkbenchWindow()
+            .getActivePage().showView(ERipGrepViewPart.ID);
+        eRipViewPart.searchFor(text, true, false);
       } catch (PartInitException e) {
         e.printStackTrace();
       }
