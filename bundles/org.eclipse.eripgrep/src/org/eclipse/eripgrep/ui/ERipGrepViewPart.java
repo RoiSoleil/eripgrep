@@ -1,72 +1,39 @@
 package org.eclipse.eripgrep.ui;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.net.MalformedURLException;
-import java.net.URL;
+import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.ALPHABETICAL_SORT;
+
+import java.io.*;
+import java.net.*;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
+import java.util.*;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 
-import org.eclipse.core.filesystem.EFS;
-import org.eclipse.core.filesystem.IFileStore;
-import org.eclipse.core.resources.IFile;
-import org.eclipse.core.resources.IResource;
-import org.eclipse.core.runtime.CoreException;
-import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.core.runtime.ISafeRunnable;
-import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.Path;
-import org.eclipse.core.runtime.SafeRunner;
-import org.eclipse.core.runtime.Status;
-import org.eclipse.core.runtime.jobs.IJobChangeEvent;
-import org.eclipse.core.runtime.jobs.IJobChangeListener;
-import org.eclipse.core.runtime.jobs.Job;
-import org.eclipse.eripgrep.ERipGrepEngine;
-import org.eclipse.eripgrep.ERipGrepProgressListener;
-import org.eclipse.eripgrep.model.ERipGrepResponse;
-import org.eclipse.eripgrep.model.ERipSearchRequest;
-import org.eclipse.eripgrep.model.MatchingFile;
-import org.eclipse.eripgrep.model.MatchingLine;
-import org.eclipse.eripgrep.model.SearchProject;
+import org.eclipse.core.filesystem.*;
+import org.eclipse.core.resources.*;
+import org.eclipse.core.runtime.*;
+import org.eclipse.core.runtime.jobs.*;
+import org.eclipse.core.runtime.preferences.*;
+import org.eclipse.eripgrep.*;
+import org.eclipse.eripgrep.model.*;
 import org.eclipse.eripgrep.utils.ExtendedBufferedReader;
-import org.eclipse.jface.action.Separator;
+import org.eclipse.jface.action.*;
 import org.eclipse.jface.resource.ImageDescriptor;
-import org.eclipse.jface.viewers.IOpenListener;
-import org.eclipse.jface.viewers.IStructuredSelection;
-import org.eclipse.jface.viewers.ITreeContentProvider;
-import org.eclipse.jface.viewers.OpenEvent;
-import org.eclipse.jface.viewers.StructuredSelection;
-import org.eclipse.jface.viewers.StyledString;
-import org.eclipse.jface.viewers.TableViewer;
-import org.eclipse.jface.viewers.TreeViewer;
+import org.eclipse.jface.viewers.*;
 import org.eclipse.search.internal.ui.SearchPluginImages;
-import org.eclipse.search.internal.ui.text.DecoratingFileSearchLabelProvider;
-import org.eclipse.search.internal.ui.text.EditorOpener;
-import org.eclipse.search.internal.ui.text.FileLabelProvider;
+import org.eclipse.search.internal.ui.text.*;
 import org.eclipse.search.ui.ISearchQuery;
-import org.eclipse.search.ui.text.AbstractTextSearchResult;
-import org.eclipse.search.ui.text.AbstractTextSearchViewPage;
-import org.eclipse.search.ui.text.IEditorMatchAdapter;
-import org.eclipse.search.ui.text.IFileMatchAdapter;
+import org.eclipse.search.ui.text.*;
 import org.eclipse.search2.internal.ui.CancelSearchAction;
-import org.eclipse.search2.internal.ui.basic.views.CollapseAllAction;
-import org.eclipse.search2.internal.ui.basic.views.ExpandAllAction;
-import org.eclipse.search2.internal.ui.basic.views.ShowNextResultAction;
-import org.eclipse.search2.internal.ui.basic.views.ShowPreviousResultAction;
-import org.eclipse.search2.internal.ui.basic.views.TreeViewerNavigator;
+import org.eclipse.search2.internal.ui.basic.views.*;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.*;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.layout.FillLayout;
-import org.eclipse.swt.widgets.Composite;
-import org.eclipse.swt.widgets.Display;
-import org.eclipse.ui.IEditorPart;
-import org.eclipse.ui.PartInitException;
+import org.eclipse.swt.widgets.*;
+import org.eclipse.ui.*;
 import org.eclipse.ui.ide.IDE;
 import org.eclipse.ui.part.ViewPart;
 import org.eclipse.ui.texteditor.ITextEditor;
@@ -80,6 +47,26 @@ public class ERipGrepViewPart extends ViewPart {
   public static final String ID = "org.eclipse.eripgrep.ERipGrepView";
 
   private static Object originalElement;
+
+  private ImageDescriptor alphabSortImage = createImageDescriptorFromURL(
+      "platform:/plugin/org.eclipse.jdt.ui/icons/full/elcl16/alphab_sort_co.png");
+
+  private static boolean alphabSort = InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).getBoolean(ALPHABETICAL_SORT, false);
+  private static Comparator<Object> matchingFileComparator = new Comparator<Object>() {
+
+    @Override
+    public int compare(Object o1, Object o2) {
+      return ((MatchingFile) o1).getFilePath().compareTo(((MatchingFile) o2).getFilePath());
+    }
+  };
+
+  private static Comparator<Object> searchProjectComparator = new Comparator<Object>() {
+
+    @Override
+    public int compare(Object o1, Object o2) {
+      return ((SearchProject) o1).getProject().getName().compareTo(((SearchProject) o2).getProject().getName());
+    }
+  };
 
   private TreeViewer treeViewer;
   private static Job currentJob;
@@ -154,8 +141,6 @@ public class ERipGrepViewPart extends ViewPart {
         try {
           showMatchingLine((MatchingLine) firstElement);
         } catch (IOException | CoreException e) {
-          // TODO Auto-generated catch block
-          e.printStackTrace();
         }
       }
     }
@@ -168,9 +153,32 @@ public class ERipGrepViewPart extends ViewPart {
         try {
           showMatchingLine((MatchingLine) firstElement);
         } catch (IOException | CoreException e) {
-          // TODO Auto-generated catch block
-          e.printStackTrace();
         }
+      }
+    }
+
+    public void internalRemoveSelected() {
+      ((StructuredSelection) treeViewer.getSelection()).forEach(this::internalRemoveSelected);
+    }
+
+    private void internalRemoveSelected(Object element) {
+      if (element instanceof SearchProject) {
+        SearchProject searchProject = (SearchProject) element;
+        searchProject.getResponse().getSearchProjects().remove(searchProject);
+        treeViewer.refresh();
+      } else if (element instanceof MatchingFile) {
+        MatchingFile matchingFile = (MatchingFile) element;
+        matchingFile.getSearchProject().getMatchingFiles().remove(matchingFile);
+        treeViewer.refresh(matchingFile.getSearchProject());
+      } else if (element instanceof MatchingLine) {
+        MatchingLine matchingLine = (MatchingLine) element;
+        matchingLine.getMatchingFile().getMatchingLines().remove(matchingLine);
+        treeViewer.refresh(matchingLine.getMatchingFile());
+      }
+      if (element instanceof SeeAll) {
+        SeeAll seeAll = (SeeAll) element;
+        Arrays.asList(seeAll.toArray()).forEach(object -> seeAll.getAllObjects().remove(object));
+        treeViewer.refresh(seeAll);
       }
     }
 
@@ -185,42 +193,17 @@ public class ERipGrepViewPart extends ViewPart {
   };
 
   private SearchAgainAction searchAgainAction;
-
   private CancelSearchAction cancelSearchAction;
+  private ExpandAllAction expandAllAction;
+  private CollapseAllAction collapseAllAction;
+  private RemoveSelectedMatchesAction removeSelectedMatchesAction;
 
   public ERipGrepViewPart() {
   }
 
   @Override
   public void createPartControl(Composite parent) {
-    getViewSite().getActionBars().getToolBarManager().add(new ShowNextResultAction(abstractTextSearchViewPage));
-    getViewSite().getActionBars().getToolBarManager().add(new ShowPreviousResultAction(abstractTextSearchViewPage));
-    getViewSite().getActionBars().getToolBarManager().add(new Separator());
-    ExpandAllAction expandAllAction = new ExpandAllAction();
-    getViewSite().getActionBars().getToolBarManager().add(expandAllAction);
-    CollapseAllAction collapseAllAction = new CollapseAllAction();
-    getViewSite().getActionBars().getToolBarManager().add(collapseAllAction);
-    getViewSite().getActionBars().getToolBarManager().add(new Separator());
-    searchAgainAction = new SearchAgainAction() {
-      @Override
-      public void run() {
-        if (currentJob != null) {
-          currentJob.schedule();
-        }
-      }
-    };
-    searchAgainAction.setEnabled(currentJob != null);
-    getViewSite().getActionBars().getToolBarManager().add(searchAgainAction);
-    cancelSearchAction = new CancelSearchAction(null) {
-      @Override
-      public void run() {
-        if (currentJob != null) {
-          currentJob.cancel();
-        }
-      }
-    };
-    cancelSearchAction.setEnabled(currentJob != null && currentJob.getThread() != null);
-    getViewSite().getActionBars().getToolBarManager().add(cancelSearchAction);
+    initToolbar();
     parent.setLayout(new FillLayout(SWT.VERTICAL));
     treeViewer = new TreeViewer(parent, SWT.MULTI | SWT.H_SCROLL | SWT.V_SCROLL);
     expandAllAction.setViewer(treeViewer);
@@ -240,7 +223,13 @@ public class ERipGrepViewPart extends ViewPart {
       @Override
       public Object[] getElements(Object inputElement) {
         if (inputElement instanceof ERipGrepResponse) {
-          return ((ERipGrepResponse) inputElement).getSearchProjects().toArray();
+          Collection<SearchProject> searchProjects = ((ERipGrepResponse) inputElement).getSearchProjects();
+          if (alphabSort) {
+            List<SearchProject> list = new ArrayList<>(searchProjects);
+            list.sort(searchProjectComparator);
+            searchProjects = list;
+          }
+          return searchProjects.toArray();
         }
         return null;
       }
@@ -249,20 +238,23 @@ public class ERipGrepViewPart extends ViewPart {
       public Object[] getChildren(Object parentElement) {
         if (parentElement instanceof SearchProject) {
           SearchProject searchProject = (SearchProject) parentElement;
-          return getMaxChildren(searchProject, searchProject.getMatchingFiles());
+          return getMaxChildren(searchProject, searchProject.getMatchingFiles(), alphabSort ? matchingFileComparator : null);
         } else if (parentElement instanceof MatchingFile) {
           MatchingFile matchingFile = (MatchingFile) parentElement;
-          return getMaxChildren(matchingFile, matchingFile.getMatchingLines());
+          return getMaxChildren(matchingFile, matchingFile.getMatchingLines(), null);
         } else if (parentElement instanceof SeeAll) {
           return ((SeeAll) parentElement).toArray();
         }
         return null;
       }
 
-      private Object[] getMaxChildren(Object element, List<?> collection) {
+      private Object[] getMaxChildren(Object element, List<?> collection, Comparator comparator) {
         List<Object> objects = new ArrayList<>();
         for (int i = 0; i < collection.size() && i < SeeAll.MAX_NUMBER; i++) {
           objects.add(collection.get(i));
+        }
+        if (comparator != null) {
+          objects.sort(comparator);
         }
         if (collection.size() > SeeAll.MAX_NUMBER) {
           objects.add(SeeAll.getOrCreate(element, collection));
@@ -301,9 +293,6 @@ public class ERipGrepViewPart extends ViewPart {
       public void open(OpenEvent event) {
         ISafeRunnable safeRunnable = new ISafeRunnable() {
 
-          /**
-           * @throws Exception
-           */
           @Override
           public void run() throws Exception {
             Object firstElement = ((IStructuredSelection) event.getSelection()).getFirstElement();
@@ -315,12 +304,65 @@ public class ERipGrepViewPart extends ViewPart {
               showMatchingLine(matchingLine);
             }
           }
-
         };
-
         SafeRunner.run(safeRunnable);
       }
     });
+    treeViewer.getControl().addKeyListener(new KeyAdapter() {
+      @Override
+      public void keyReleased(KeyEvent e) {
+        if (e.character == 0x7F)
+          removeSelectedMatchesAction.run();
+      }
+    });
+  }
+
+  private void initToolbar() {
+    getViewSite().getActionBars().getToolBarManager().add(new ShowNextResultAction(abstractTextSearchViewPage));
+    getViewSite().getActionBars().getToolBarManager().add(new ShowPreviousResultAction(abstractTextSearchViewPage));
+    getViewSite().getActionBars().getToolBarManager().add(new Separator());
+    removeSelectedMatchesAction = new RemoveSelectedMatchesAction(abstractTextSearchViewPage);
+    getViewSite().getActionBars().getToolBarManager().add(removeSelectedMatchesAction);
+    getViewSite().getActionBars().getToolBarManager().add(new Separator());
+    expandAllAction = new ExpandAllAction();
+    getViewSite().getActionBars().getToolBarManager().add(expandAllAction);
+    collapseAllAction = new CollapseAllAction();
+    getViewSite().getActionBars().getToolBarManager().add(collapseAllAction);
+    getViewSite().getActionBars().getToolBarManager().add(new Separator());
+    searchAgainAction = new SearchAgainAction() {
+      @Override
+      public void run() {
+        if (currentJob != null) {
+          currentJob.schedule();
+        }
+      }
+    };
+    searchAgainAction.setEnabled(currentJob != null);
+    getViewSite().getActionBars().getToolBarManager().add(searchAgainAction);
+    cancelSearchAction = new CancelSearchAction(null) {
+      @Override
+      public void run() {
+        if (currentJob != null) {
+          currentJob.cancel();
+        }
+      }
+    };
+    cancelSearchAction.setEnabled(currentJob != null && currentJob.getThread() != null);
+    getViewSite().getActionBars().getToolBarManager().add(cancelSearchAction);
+    getViewSite().getActionBars().getToolBarManager().add(new Separator());
+    Action sortAlphabeticallyAction = new Action("Sort alphabetically", IAction.AS_PUSH_BUTTON) {
+
+      @Override
+      public void run() {
+        alphabSort = !alphabSort;
+        IEclipsePreferences preferences = InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID);
+        preferences.putBoolean(ALPHABETICAL_SORT, alphabSort);
+        treeViewer.refresh();
+      }
+    };
+    sortAlphabeticallyAction.setImageDescriptor(alphabSortImage);
+    sortAlphabeticallyAction.setChecked(alphabSort);
+    getViewSite().getActionBars().getToolBarManager().add(sortAlphabeticallyAction);
   }
 
   private void showMatchingLine(MatchingLine matchingLine) throws PartInitException, IOException, CoreException {
@@ -387,7 +429,6 @@ public class ERipGrepViewPart extends ViewPart {
             if (treeViewer.isBusy()) {
               return;
             }
-
             Display.getDefault().asyncExec(() -> treeViewer.refresh(element));
           }
 
@@ -400,10 +441,11 @@ public class ERipGrepViewPart extends ViewPart {
               } catch (InterruptedException e) {
               }
             }
-            Display.getDefault().asyncExec(() -> {
-              treeViewer.refresh(treeViewer.getInput());
-              SeeAll.cache.clear();
-            });
+            if (!monitor.isCanceled())
+              Display.getDefault().asyncExec(() -> {
+                treeViewer.refresh(treeViewer.getInput());
+                SeeAll.cache.clear();
+              });
           }
         });
         Display.getDefault().asyncExec(() -> treeViewer.setInput(ERipGrepEngine.searchFor(request)));
@@ -417,19 +459,7 @@ public class ERipGrepViewPart extends ViewPart {
         return monitor.isCanceled() ? Status.CANCEL_STATUS : Status.OK_STATUS;
       }
     }).schedule();
-    currentJob.addJobChangeListener(new IJobChangeListener() {
-
-      @Override
-      public void sleeping(IJobChangeEvent event) {
-      }
-
-      @Override
-      public void scheduled(IJobChangeEvent event) {
-      }
-
-      @Override
-      public void running(IJobChangeEvent event) {
-      }
+    currentJob.addJobChangeListener(new JobChangeAdapter() {
 
       @Override
       public void done(IJobChangeEvent event) {
@@ -440,15 +470,7 @@ public class ERipGrepViewPart extends ViewPart {
         });
       }
 
-      @Override
-      public void awake(IJobChangeEvent event) {
-      }
-
-      @Override
-      public void aboutToRun(IJobChangeEvent event) {
-      }
     });
-    ;
   }
 
   private class ERipGrepLabelProvider extends FileLabelProvider {
@@ -505,10 +527,14 @@ public class ERipGrepViewPart extends ViewPart {
   }
 
   protected static Image createImageFromURL(String url) {
+    ImageDescriptor imageDescriptor = createImageDescriptorFromURL(url);
+    return imageDescriptor != null ? imageDescriptor.createImage() : null;
+  }
+
+  protected static ImageDescriptor createImageDescriptorFromURL(String url) {
     try {
-      return ImageDescriptor.createFromURL(new URL(url)).createImage();
+      return ImageDescriptor.createFromURL(new URL(url));
     } catch (MalformedURLException e) {
-      // Rien é faire.
     }
     return null;
   }
@@ -516,10 +542,14 @@ public class ERipGrepViewPart extends ViewPart {
   private static class SeeAll {
 
     public static final int MAX_NUMBER = 50;
-    private static final ConcurrentHashMap<Object, SeeAll> cache = new ConcurrentHashMap<>();
-    private List<?> objects;
 
-    private SeeAll(List<?> objects) {
+    private static final ConcurrentHashMap<Object, SeeAll> cache = new ConcurrentHashMap<>();
+
+    private final Object element;
+    private final List<?> objects;
+
+    private SeeAll(Object element, List<?> objects) {
+      this.element = element;
       this.objects = objects;
     }
 
@@ -528,11 +558,22 @@ public class ERipGrepViewPart extends ViewPart {
       for (int i = MAX_NUMBER; i < objects.size(); i++) {
         otherObjects.add(objects.get(i));
       }
+      if (alphabSort && element instanceof SearchProject) {
+        otherObjects.sort(matchingFileComparator);
+      }
       return otherObjects.toArray();
     }
 
+    public Object getElement() {
+      return element;
+    }
+
+    public List<?> getAllObjects() {
+      return objects;
+    }
+
     public static SeeAll getOrCreate(Object object, List<?> list) {
-      return cache.computeIfAbsent(object, o -> new SeeAll(list));
+      return cache.computeIfAbsent(object, o -> new SeeAll(object, list));
     }
   }
 

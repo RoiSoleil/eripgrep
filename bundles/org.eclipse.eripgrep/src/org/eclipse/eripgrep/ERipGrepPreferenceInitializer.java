@@ -1,11 +1,8 @@
 package org.eclipse.eripgrep;
 
-import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.SEARCH_IN_CLOSED_PROJECT;
-import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.THREAD_NUMBER;
+import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.*;
 
-import org.eclipse.core.runtime.preferences.AbstractPreferenceInitializer;
-import org.eclipse.core.runtime.preferences.DefaultScope;
-import org.eclipse.core.runtime.preferences.IEclipsePreferences;
+import org.eclipse.core.runtime.preferences.*;
 
 public class ERipGrepPreferenceInitializer extends AbstractPreferenceInitializer {
 
@@ -17,6 +14,7 @@ public class ERipGrepPreferenceInitializer extends AbstractPreferenceInitializer
     IEclipsePreferences preferences = DefaultScope.INSTANCE.getNode(Activator.PLUGIN_ID);
     preferences.putBoolean(SEARCH_IN_CLOSED_PROJECT, true);
     preferences.putInt(THREAD_NUMBER, 5);
+    preferences.putBoolean(ALPHABETICAL_SORT, false);
   }
 
 }

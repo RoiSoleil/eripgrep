@@ -1,12 +1,13 @@
 package org.eclipse.eripgrep.model;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class ERipGrepResponse {
 
-  private List<SearchProject> searchProjects = new ArrayList<>();
+  private final ConcurrentLinkedQueue<SearchProject> searchProjects = new ConcurrentLinkedQueue<>();
 
-  public List<SearchProject> getSearchProjects() {
+  public Queue<SearchProject> getSearchProjects() {
     return searchProjects;
   }
 

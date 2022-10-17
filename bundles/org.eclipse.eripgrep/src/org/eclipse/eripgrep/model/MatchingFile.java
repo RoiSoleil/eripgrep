@@ -22,10 +22,14 @@ public class MatchingFile {
   public MatchingFile(SearchProject searchProject, String filePathString) {
     this.searchProject = searchProject;
     this.filePathString = filePathString;
-    this.filePath = filePathString.substring(FILEPATH_PREFIX_LENGTH, filePathString.length() - FILEPATH_SUFIX_LENGTH);
+    this.filePath = getFilePath(filePathString);
     this.matchingResource = initMatchingResource(filePath);
     this.fileName = new File(filePath).getName();
     searchProject.getMatchingFiles().add(this);
+  }
+
+  public static String getFilePath(String filePathString) {
+    return filePathString.substring(FILEPATH_PREFIX_LENGTH, filePathString.length() - FILEPATH_SUFIX_LENGTH);
   }
 
   private IResource initMatchingResource(String filePath) {
