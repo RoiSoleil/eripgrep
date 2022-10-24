@@ -1,96 +1,45 @@
 package org.eclipse.eripgrep.ui;
 
-import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.ALPHABETICAL_SORT;
-import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.CASE_SENSITIVE;
-import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.GROUP_BY_FOLDER;
-import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.REGULAR_EXPRESSION;
+import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.*;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.HashMap;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
+import java.util.stream.Collectors;
 
 import org.eclipse.core.filesystem.EFS;
 import org.eclipse.core.filesystem.IFileStore;
-import org.eclipse.core.resources.IFile;
-import org.eclipse.core.resources.IFolder;
-import org.eclipse.core.resources.IResource;
-import org.eclipse.core.runtime.CoreException;
-import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.core.runtime.ISafeRunnable;
-import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.Path;
-import org.eclipse.core.runtime.SafeRunner;
-import org.eclipse.core.runtime.Status;
-import org.eclipse.core.runtime.jobs.IJobChangeEvent;
-import org.eclipse.core.runtime.jobs.Job;
-import org.eclipse.core.runtime.jobs.JobChangeAdapter;
+import org.eclipse.core.resources.*;
+import org.eclipse.core.runtime.*;
+import org.eclipse.core.runtime.jobs.*;
 import org.eclipse.core.runtime.preferences.IEclipsePreferences;
 import org.eclipse.core.runtime.preferences.InstanceScope;
-import org.eclipse.eripgrep.Activator;
-import org.eclipse.eripgrep.ERipGrepEngine;
-import org.eclipse.eripgrep.ERipGrepProgressListener;
-import org.eclipse.eripgrep.model.ERipGrepResponse;
-import org.eclipse.eripgrep.model.ERipSearchRequest;
-import org.eclipse.eripgrep.model.MatchingFile;
-import org.eclipse.eripgrep.model.MatchingLine;
-import org.eclipse.eripgrep.model.RipGrepError;
-import org.eclipse.eripgrep.model.SearchProject;
+import org.eclipse.eripgrep.*;
+import org.eclipse.eripgrep.model.*;
 import org.eclipse.eripgrep.utils.ExtendedBufferedReader;
-import org.eclipse.jface.action.Action;
-import org.eclipse.jface.action.IAction;
-import org.eclipse.jface.action.Separator;
+import org.eclipse.jface.action.*;
 import org.eclipse.jface.resource.ImageDescriptor;
-import org.eclipse.jface.viewers.IOpenListener;
-import org.eclipse.jface.viewers.IStructuredSelection;
-import org.eclipse.jface.viewers.ITreeContentProvider;
-import org.eclipse.jface.viewers.OpenEvent;
-import org.eclipse.jface.viewers.StructuredSelection;
-import org.eclipse.jface.viewers.StyledString;
-import org.eclipse.jface.viewers.TableViewer;
-import org.eclipse.jface.viewers.TreeViewer;
+import org.eclipse.jface.viewers.*;
 import org.eclipse.search.internal.ui.SearchPluginImages;
-import org.eclipse.search.internal.ui.text.DecoratingFileSearchLabelProvider;
-import org.eclipse.search.internal.ui.text.EditorOpener;
-import org.eclipse.search.internal.ui.text.FileLabelProvider;
+import org.eclipse.search.internal.ui.text.*;
 import org.eclipse.search.ui.ISearchQuery;
-import org.eclipse.search.ui.text.AbstractTextSearchResult;
-import org.eclipse.search.ui.text.AbstractTextSearchViewPage;
-import org.eclipse.search.ui.text.IEditorMatchAdapter;
-import org.eclipse.search.ui.text.IFileMatchAdapter;
+import org.eclipse.search.ui.text.*;
 import org.eclipse.search2.internal.ui.CancelSearchAction;
-import org.eclipse.search2.internal.ui.basic.views.CollapseAllAction;
-import org.eclipse.search2.internal.ui.basic.views.ExpandAllAction;
-import org.eclipse.search2.internal.ui.basic.views.RemoveSelectedMatchesAction;
-import org.eclipse.search2.internal.ui.basic.views.ShowNextResultAction;
-import org.eclipse.search2.internal.ui.basic.views.ShowPreviousResultAction;
-import org.eclipse.search2.internal.ui.basic.views.TreeViewerNavigator;
+import org.eclipse.search2.internal.ui.basic.views.*;
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.events.KeyAdapter;
-import org.eclipse.swt.events.KeyEvent;
-import org.eclipse.swt.events.SelectionAdapter;
-import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.events.*;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
-import org.eclipse.swt.widgets.Button;
-import org.eclipse.swt.widgets.Composite;
-import org.eclipse.swt.widgets.Display;
-import org.eclipse.swt.widgets.Text;
+import org.eclipse.swt.widgets.*;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.ide.IDE;
@@ -146,6 +95,51 @@ public class ERipGrepViewPart extends ViewPart {
 
   private TreeViewer treeViewer;
   private static Job currentJob;
+  private static LinkedHashMap<ERipSearchRequest, ERipGrepResponse> history = loadHistory();
+
+  public static Job getCurrentJob() {
+    return currentJob;
+  }
+
+  public static LinkedHashMap<ERipSearchRequest, ERipGrepResponse> getHistory() {
+    return history;
+  }
+
+  private static LinkedHashMap<ERipSearchRequest, ERipGrepResponse> loadHistory() {
+    LinkedHashMap<ERipSearchRequest, ERipGrepResponse> history = new LinkedHashMap<>();
+    Arrays.asList(InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).get(HISTORY, "").split("\\|")).stream()
+    .filter(Predicate.not(String::isBlank))
+    .forEach(r -> {
+      ERipSearchRequest request = new ERipSearchRequest();
+      request.setText(r);
+      history.put(request, null);
+    });
+    return history;
+  }
+
+  public void clearHistory() {
+    if (currentJob != null && currentJob.getState() == Job.RUNNING) {
+      currentJob.cancel();
+    }
+    searchAgainAction.setEnabled(false);
+    currentRequest = null;
+    textField.setText("");
+    history.clear();
+    treeViewer.setInput(null);
+    saveHistory();
+  }
+
+  private void saveHistory() {
+    List<ERipSearchRequest> requests = new ArrayList<>(history.keySet());
+    Collections.reverse(requests);
+    if (requests.size() > 25) {
+      requests = requests.subList(0, 25);
+    }
+    String history = requests.stream().map(ERipSearchRequest::getText).collect(Collectors.joining("|"));
+    IEclipsePreferences preferences = InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID);
+    InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).put(HISTORY,
+        history);
+  }
 
   private EditorOpener editorOpener = new EditorOpener();
 
@@ -266,16 +260,11 @@ public class ERipGrepViewPart extends ViewPart {
         Folder folder = (Folder) element;
         File _folder = new File(folder.getParentFile(), folder.getName());
         SearchProject searchProject = folder.getSearchProject();
-        ;
         searchProject.getMatchingFiles().removeAll(searchProject.getMatchingFiles().stream()
             .filter(matchingFile -> matchingFile.getFilePath().startsWith(_folder.getAbsolutePath())).toList());
         treeViewer.refresh(searchProject);
       }
     }
-
-    // private Set<MatchingFile> getMatchingFiles(Folder folder) {
-    // Set<MatchingFile> ma
-    // }
 
     public int getDisplayedMatchCount(Object element) {
       return element instanceof MatchingLine ? 1 : 0;
@@ -292,6 +281,14 @@ public class ERipGrepViewPart extends ViewPart {
   private ExpandAllAction expandAllAction;
   private CollapseAllAction collapseAllAction;
   private RemoveSelectedMatchesAction removeSelectedMatchesAction;
+
+  private Text textField;
+
+  private Button caseSensitiveButton;
+
+  private Button regularExpressionButton;
+
+  private ERipSearchRequest currentRequest;
 
   public ERipGrepViewPart() {
   }
@@ -483,6 +480,18 @@ public class ERipGrepViewPart extends ViewPart {
     });
   }
 
+  public void setCurrent(ERipSearchRequest searchRequest, ERipGrepResponse response) {
+    this.currentRequest = searchRequest;
+    textField.setText(searchRequest.getText());
+    caseSensitiveButton.setSelection(searchRequest.isCaseSensitive());
+    regularExpressionButton.setSelection(searchRequest.isRegularExpression());
+    treeViewer.setInput(response);
+  }
+
+  public ERipGrepResponse getCurrent() {
+    return (ERipGrepResponse) treeViewer.getInput();
+  }
+
   private void createSearchField(Composite parent) {
     GridLayout gridLayout;
     Composite composite = new Composite(parent, SWT.NONE);
@@ -490,9 +499,9 @@ public class ERipGrepViewPart extends ViewPart {
     gridLayout = new GridLayout();
     gridLayout.numColumns = 3;
     composite.setLayout(gridLayout);
-    Text text = new Text(composite, SWT.BORDER);
-    text.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
-    Button caseSensitiveButton = new Button(composite, SWT.CHECK);
+    textField = new Text(composite, SWT.BORDER);
+    textField.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+    caseSensitiveButton = new Button(composite, SWT.CHECK);
     caseSensitiveButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
     caseSensitiveButton.setText("Case sensitive");
     caseSensitiveButton.setSelection(InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).getBoolean(CASE_SENSITIVE, true));
@@ -503,7 +512,7 @@ public class ERipGrepViewPart extends ViewPart {
         preferences.putBoolean(CASE_SENSITIVE, caseSensitiveButton.getSelection());
       }
     });
-    Button regularExpressionButton = new Button(composite, SWT.CHECK);
+    regularExpressionButton = new Button(composite, SWT.CHECK);
     regularExpressionButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
     regularExpressionButton.setText("Regular expression");
     regularExpressionButton.setSelection(InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).getBoolean(REGULAR_EXPRESSION, false));
@@ -514,11 +523,11 @@ public class ERipGrepViewPart extends ViewPart {
         preferences.putBoolean(REGULAR_EXPRESSION, regularExpressionButton.getSelection());
       }
     });
-    text.addKeyListener(new KeyAdapter() {
+    textField.addKeyListener(new KeyAdapter() {
       @Override
       public void keyPressed(KeyEvent e) {
         if (e.character == SWT.CR) {
-          searchFor(text.getText(), caseSensitiveButton.getSelection(), regularExpressionButton.getSelection());
+          searchFor(textField.getText(), caseSensitiveButton.getSelection(), regularExpressionButton.getSelection());
         }
       }
     });
@@ -539,9 +548,7 @@ public class ERipGrepViewPart extends ViewPart {
     searchAgainAction = new SearchAgainAction() {
       @Override
       public void run() {
-        if (currentJob != null) {
-          currentJob.schedule();
-        }
+        searchFor(currentRequest);
       }
     };
     searchAgainAction.setEnabled(currentJob != null);
@@ -556,6 +563,7 @@ public class ERipGrepViewPart extends ViewPart {
     };
     cancelSearchAction.setEnabled(currentJob != null && currentJob.getThread() != null);
     getViewSite().getActionBars().getToolBarManager().add(cancelSearchAction);
+    getViewSite().getActionBars().getToolBarManager().add(new SearchHistoryDropDownAction(this));
     getViewSite().getActionBars().getToolBarManager().add(new Separator());
     Action sortAlphabeticallyAction = new Action("Sort alphabetically", IAction.AS_PUSH_BUTTON) {
 
@@ -629,21 +637,28 @@ public class ERipGrepViewPart extends ViewPart {
   }
 
   public void searchFor(String text, boolean caseSensitive, boolean regularExpression) {
-    (currentJob = new Job("Searching for \"" + text + "\" with RipGrep ...") {
+    ERipSearchRequest request = new ERipSearchRequest();
+    request.setText(text);
+    request.setCaseSensitive(caseSensitive);
+    request.setRegularExpression(regularExpression);
+    searchFor(request);
+  }
+
+  public void searchFor(ERipSearchRequest request) {
+    currentRequest = request;
+    (currentJob = new Job("Searching for \"" + request.getText() + "\" with RipGrep ...") {
 
       @Override
       protected IStatus run(IProgressMonitor monitor) {
         Display.getDefault().asyncExec(() -> {
+          textField.setText(request.getText());
           searchAgainAction.setEnabled(false);
           cancelSearchAction.setEnabled(true);
           getViewSite().getActionBars().updateActionBars();
         });
         AtomicBoolean done = new AtomicBoolean();
-        ERipSearchRequest request = new ERipSearchRequest();
+        request.setTime(System.currentTimeMillis());
         request.setProgressMonitor(monitor);
-        request.setText(text);
-        request.setCaseSensitive(caseSensitive);
-        request.setRegularExpression(regularExpression);
         request.setListener(new ERipGrepProgressListener() {
 
           @Override
@@ -673,7 +688,10 @@ public class ERipGrepViewPart extends ViewPart {
         Display.getDefault().asyncExec(() -> {
           SeeAll.cache.clear();
           Folder.cache.clear();
-          treeViewer.setInput(ERipGrepEngine.searchFor(request));
+          ERipGrepResponse response = ERipGrepEngine.searchFor(request);
+          treeViewer.setInput(response);
+          history.put(request, response);
+          saveHistory();
         });
         while (!(done.get() || monitor.isCanceled())) {
           try {
@@ -855,4 +873,5 @@ public class ERipGrepViewPart extends ViewPart {
       return cache.computeIfAbsent(parentFile, o -> new Folder(searchProject, parentFile, name, folder));
     }
   }
+
 }

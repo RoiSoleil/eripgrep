@@ -5,11 +5,20 @@ import org.eclipse.eripgrep.ERipGrepProgressListener;
 
 public class ERipSearchRequest {
 
+  private long time = -1;
   private String text;
   private boolean caseSensitive;
   private boolean regularExpression;
   private ERipGrepProgressListener listener;
   private IProgressMonitor progressMonitor;
+
+  public long getTime() {
+    return time;
+  }
+
+  public void setTime(long time) {
+    this.time = time;
+  }
 
   public String getText() {
     return text;

@@ -31,6 +31,7 @@ public class ERipGrepPreferencePage extends FieldEditorPreferencePage implements
   public static final String GROUP_BY_FOLDER = "GROUP_BY_FOLDER";
   public static final String CASE_SENSITIVE = "CASE_SENSITIVE";
   public static final String REGULAR_EXPRESSION = "REGULAR_EXPRESSION";
+  public static final String HISTORY = "HISTORY";
 
   public ERipGrepPreferencePage() {
   }
