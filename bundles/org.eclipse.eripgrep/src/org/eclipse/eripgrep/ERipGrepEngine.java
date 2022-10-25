@@ -1,36 +1,19 @@
 package org.eclipse.eripgrep;
 
-import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.RIPGREP_PATH;
-import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.SEARCH_IN_CLOSED_PROJECT;
-import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.THREAD_NUMBER;
+import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.*;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.List;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 
-import org.eclipse.core.resources.IProject;
-import org.eclipse.core.resources.ResourcesPlugin;
+import org.eclipse.core.resources.*;
 import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.core.runtime.preferences.IEclipsePreferences;
-import org.eclipse.core.runtime.preferences.InstanceScope;
-import org.eclipse.eripgrep.model.ERipGrepResponse;
-import org.eclipse.eripgrep.model.ERipSearchRequest;
-import org.eclipse.eripgrep.model.MatchingFile;
-import org.eclipse.eripgrep.model.MatchingLine;
-import org.eclipse.eripgrep.model.RipGrepError;
-import org.eclipse.eripgrep.model.SearchProject;
-import org.eclipse.jface.preference.PreferenceDialog;
+import org.eclipse.core.runtime.preferences.*;
+import org.eclipse.eripgrep.model.*;
+import org.eclipse.eripgrep.ui.UiUtils;
 import org.eclipse.swt.widgets.Display;
-import org.eclipse.ui.dialogs.PreferencesUtil;
 
 public class ERipGrepEngine {
 
@@ -40,11 +23,7 @@ public class ERipGrepEngine {
     IEclipsePreferences preferences = InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID);
     String ripGrepFilePath = preferences.get(RIPGREP_PATH, null);
     if (ripGrepFilePath == null) {
-      Display.getDefault().syncExec(() -> {
-        PreferenceDialog dialog = PreferencesUtil.createPreferenceDialogOn(Display.getDefault().getActiveShell(),
-            "org.eclipse.eripgrep.PreferencePage", new String[] { "org.eclipse.eripgrep.PreferencePage" }, null);
-        dialog.open();
-      });
+      Display.getDefault().syncExec(() -> UiUtils.openPreferencePage());
     }
     File ripGrepFile = new File(ripGrepFilePath);
     boolean searchInClosedProject = preferences.getBoolean(SEARCH_IN_CLOSED_PROJECT, true);

@@ -2,27 +2,21 @@ package org.eclipse.eripgrep.ui;
 
 import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.eripgrep.Activator;
-import org.eclipse.jface.preference.BooleanFieldEditor;
-import org.eclipse.jface.preference.FieldEditorPreferencePage;
-import org.eclipse.jface.preference.FileFieldEditor;
-import org.eclipse.jface.preference.IntegerFieldEditor;
-import org.eclipse.jface.preference.PreferencePage;
+import org.eclipse.jface.preference.*;
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.events.SelectionAdapter;
-import org.eclipse.swt.events.SelectionEvent;
-import org.eclipse.swt.layout.GridData;
-import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.events.*;
+import org.eclipse.swt.layout.*;
 import org.eclipse.swt.program.Program;
-import org.eclipse.swt.widgets.Composite;
-import org.eclipse.swt.widgets.Link;
-import org.eclipse.ui.IWorkbench;
-import org.eclipse.ui.IWorkbenchPreferencePage;
+import org.eclipse.swt.widgets.*;
+import org.eclipse.ui.*;
 import org.eclipse.ui.preferences.ScopedPreferenceStore;
 
 /**
  * The {@link PreferencePage} for ERipGrep.
  */
 public class ERipGrepPreferencePage extends FieldEditorPreferencePage implements IWorkbenchPreferencePage {
+
+  public static final String ID = "org.eclipse.eripgrep.PreferencePage";
 
   public static final String RIPGREP_PATH = "RIPGREP_PATH";
   public static final String SEARCH_IN_CLOSED_PROJECT = "SEARCH_IN_CLOSED_PROJECT";
@@ -39,11 +33,11 @@ public class ERipGrepPreferencePage extends FieldEditorPreferencePage implements
   @Override
   protected void createFieldEditors() {
     addField(new FileFieldEditor(RIPGREP_PATH, "&Rip grep binary : ", getFieldEditorParent()));
-    addField(new BooleanFieldEditor(SEARCH_IN_CLOSED_PROJECT, "&Search in closed project : ", getFieldEditorParent()));
+    addField(new BooleanFieldEditor(SEARCH_IN_CLOSED_PROJECT, "&Search in closed project", getFieldEditorParent()));
     addField(new IntegerFieldEditor(THREAD_NUMBER, "&Number of RipGrep thread : ", getFieldEditorParent(), 1));
     Composite parent = getFieldEditorParent();
     parent.setLayout(new GridLayout());
-    Link link = new Link(parent, SWT.BORDER);
+    Link link = new Link(parent, SWT.NONE);
     link.setLayoutData(new GridData(GridData.FILL_HORIZONTAL));
     link.setText("<A>Get RipGrep !</A>");
     link.addSelectionListener(new SelectionAdapter() {

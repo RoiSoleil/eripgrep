@@ -1,15 +1,8 @@
 package org.eclipse.eripgrep;
 
-import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.ALPHABETICAL_SORT;
-import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.CASE_SENSITIVE;
-import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.GROUP_BY_FOLDER;
-import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.REGULAR_EXPRESSION;
-import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.SEARCH_IN_CLOSED_PROJECT;
-import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.THREAD_NUMBER;
+import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.*;
 
-import org.eclipse.core.runtime.preferences.AbstractPreferenceInitializer;
-import org.eclipse.core.runtime.preferences.DefaultScope;
-import org.eclipse.core.runtime.preferences.IEclipsePreferences;
+import org.eclipse.core.runtime.preferences.*;
 
 public class ERipGrepPreferenceInitializer extends AbstractPreferenceInitializer {
 
