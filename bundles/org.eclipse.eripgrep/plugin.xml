@@ -5,7 +5,7 @@
          point="org.eclipse.ui.views">
       <view
             class="org.eclipse.eripgrep.ui.ERipGrepViewPart"
-            icon="platform:/plugin/org.eclipse.ui/icons/full/etool16/search.png"
+            icon="platform:/plugin/org.eclipse.search/icons/full/eview16/searchres.png"
             id="org.eclipse.eripgrep.ERipGrepView"
             name="ERipGrep"
             restorable="true">
@@ -14,7 +14,7 @@
    <extension
          point="org.eclipse.ui.preferencePages">
       <page
-            class="org.eclipse.eripgrep.ui.ERipGrepPreferencePage"
+            class="org.eclipse.eripgrep.ui.PreferencePage"
             id="org.eclipse.eripgrep.PreferencePage"
             name="ERipGrep">
       </page>
@@ -39,7 +39,7 @@
    <extension
          point="org.eclipse.core.runtime.preferences">
       <initializer
-            class="org.eclipse.eripgrep.ERipGrepPreferenceInitializer">
+            class="org.eclipse.eripgrep.PreferenceInitializer">
       </initializer>
    </extension>
 

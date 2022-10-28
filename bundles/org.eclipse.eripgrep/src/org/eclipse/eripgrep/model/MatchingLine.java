@@ -1,7 +1,6 @@
 package org.eclipse.eripgrep.model;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.regex.*;
 
 public class MatchingLine {
 

@@ -1,6 +1,6 @@
 package org.eclipse.eripgrep;
 
-import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.*;
+import static org.eclipse.eripgrep.utils.PreferenceConstantes.*;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -12,38 +12,39 @@ import org.eclipse.core.resources.*;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.preferences.*;
 import org.eclipse.eripgrep.model.*;
+import org.eclipse.eripgrep.model.Error;
 import org.eclipse.eripgrep.ui.UiUtils;
+import org.eclipse.eripgrep.utils.Utils;
 import org.eclipse.swt.widgets.Display;
 
-public class ERipGrepEngine {
+public class Engine {
 
-  public static ERipGrepResponse searchFor(ERipSearchRequest request) {
+  public static Response searchFor(Request request) {
     IProgressMonitor progressMonitor = request.getProgressMonitor();
-    ERipGrepResponse eRipGrepResponse = new ERipGrepResponse();
-    IEclipsePreferences preferences = InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID);
-    String ripGrepFilePath = preferences.get(RIPGREP_PATH, null);
+    Response response = new Response();
+    String ripGrepFilePath = Utils.getPreferences().get(RIPGREP_PATH, null);
     if (ripGrepFilePath == null) {
       Display.getDefault().syncExec(() -> UiUtils.openPreferencePage());
     }
     File ripGrepFile = new File(ripGrepFilePath);
-    boolean searchInClosedProject = preferences.getBoolean(SEARCH_IN_CLOSED_PROJECT, true);
+    boolean searchInClosedProject = Utils.getPreferences().getBoolean(SEARCH_IN_CLOSED_PROJECT, true);
     List<IProject> openedProjects = new ArrayList<>();
     List<IProject> closedProjects = new ArrayList<>();
     Arrays.asList(ResourcesPlugin.getWorkspace().getRoot().getProjects())
         .forEach(project -> (project.isOpen() ? openedProjects : closedProjects).add(project));
-    ExecutorService executorService = Executors.newFixedThreadPool(preferences.getInt(THREAD_NUMBER, 5));
+    ExecutorService executorService = Executors.newFixedThreadPool(Utils.getPreferences().getInt(THREAD_NUMBER, 5));
+    Queue<IProject> projects = new ConcurrentLinkedQueue<>(openedProjects);
+    if (searchInClosedProject) {
+      projects.addAll(closedProjects);
+    }
+    LinkedHashMap<String, IProject> longerProjectByOSString = getLongerProjectByOSString(projects);
+    removeSubDirectoryProject(projects);
     try {
-      List<IProject> projects = new ArrayList<>(openedProjects);
-      if (searchInClosedProject) {
-        projects.addAll(closedProjects);
-      }
-      LinkedHashMap<String, IProject> longerProjectByOSString = getLongerProjectByOSString(projects);
-      removeSubDirectoryProject(projects);
       progressMonitor.beginTask("", projects.size());
       new ArrayList<>(projects).forEach(project -> executorService.submit(() -> {
         progressMonitor.subTask("Searching in " + project.getName());
         try {
-          searchFor(request, eRipGrepResponse, ripGrepFile, project, longerProjectByOSString);
+          searchFor(request, response, ripGrepFile, project, longerProjectByOSString);
         } finally {
           projects.remove(project);
           progressMonitor.worked(1);
@@ -54,12 +55,13 @@ public class ERipGrepEngine {
         }
       }));
     } catch (Exception e) {
+      Activator.error(e);
     }
     executorService.shutdown();
-    return eRipGrepResponse;
+    return response;
   }
 
-  private static LinkedHashMap<String, IProject> getLongerProjectByOSString(List<IProject> projects) {
+  private static LinkedHashMap<String, IProject> getLongerProjectByOSString(Queue<IProject> projects) {
     LinkedHashMap<String, IProject> longerProjectByOSString = new LinkedHashMap<>();
     List<IProject> longerProjects = new ArrayList<>(projects);
     longerProjects.sort((p1, p2) -> -p1.getLocation().toOSString().compareTo(p2.getLocation().toOSString()));
@@ -67,7 +69,7 @@ public class ERipGrepEngine {
     return longerProjectByOSString;
   }
 
-  private static void removeSubDirectoryProject(List<IProject> projects) {
+  private static void removeSubDirectoryProject(Queue<IProject> projects) {
     List<IProject> shorterProjects = new ArrayList<>(projects);
     shorterProjects.sort((p1, p2) -> p1.getLocation().toOSString().compareTo(p2.getLocation().toOSString()));
     List<IProject> longerProjects = new ArrayList<>(projects);
@@ -83,7 +85,7 @@ public class ERipGrepEngine {
     }
   }
 
-  private static void searchFor(ERipSearchRequest request, ERipGrepResponse response, File ripGrepFile,
+  private static void searchFor(Request request, Response response, File ripGrepFile,
       IProject project, LinkedHashMap<String, IProject> longerProjectByOSString) {
     IProgressMonitor progressMonitor = request.getProgressMonitor();
     if (progressMonitor.isCanceled()) {
@@ -115,7 +117,7 @@ public class ERipGrepEngine {
               }
             } else if (matchingFile == null) {
               String filePath = MatchingFile.getFilePath(line);
-              SearchProject searchProject = getOrCreateSearchProject(response, longerProjectByOSString, filePath);
+              SearchedProject searchProject = getOrCreateSearchProject(response, longerProjectByOSString, filePath);
               matchingFile = new MatchingFile(searchProject, line);
             } else {
               new MatchingLine(matchingFile, line);
@@ -125,7 +127,7 @@ public class ERipGrepEngine {
             request.getListener().update(response);
           }
         } catch (IOException e) {
-          e.printStackTrace();
+          Activator.error(e);
         }
         if (progressMonitor.isCanceled()) {
           process.destroyForcibly();
@@ -140,28 +142,29 @@ public class ERipGrepEngine {
             stringBuilder.append(line + "\n");
           }
           if (!stringBuilder.isEmpty()) {
-            SearchProject searchProject = getOrCreateSearchProject(response, longerProjectByOSString, project.getLocation().toOSString());
-            new RipGrepError(searchProject, stringBuilder.toString());
+            SearchedProject searchProject = getOrCreateSearchProject(response, longerProjectByOSString, project.getLocation().toOSString());
+            new Error(searchProject, stringBuilder.toString());
           }
         } catch (IOException e) {
+          Activator.error(e);
         }
       }).start();
       process.waitFor();
     } catch (IOException | InterruptedException e) {
+      Activator.error(e);
     }
-
   }
 
-  private static SearchProject getOrCreateSearchProject(ERipGrepResponse response, LinkedHashMap<String, IProject> longerProjectByOSString, String filePath) {
+  private static SearchedProject getOrCreateSearchProject(Response response, LinkedHashMap<String, IProject> longerProjectByOSString, String filePath) {
     IProject project = longerProjectByOSString.entrySet().stream()
         .filter(entry -> filePath.contains(entry.getKey()))
         .findFirst()
         .map(Entry::getValue)
         .orElse(null);
-    return response.getSearchProjects().stream()
+    return response.getSearchedProjects().stream()
         .filter(searchProject -> project.equals(searchProject.getProject()))
         .findFirst()
-        .orElseGet(() -> new SearchProject(response, project));
+        .orElseGet(() -> new SearchedProject(response, project));
   }
 
 }

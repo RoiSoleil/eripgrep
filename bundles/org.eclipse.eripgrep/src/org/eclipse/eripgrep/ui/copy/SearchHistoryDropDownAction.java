@@ -1,37 +1,33 @@
-package org.eclipse.eripgrep.ui;
+package org.eclipse.eripgrep.ui.copy;
 
-import java.text.DateFormat;
-import java.text.MessageFormat;
+import java.text.*;
 import java.util.*;
 import java.util.List;
 import java.util.Map.Entry;
 
 import org.eclipse.core.runtime.jobs.Job;
-import org.eclipse.eripgrep.model.ERipGrepResponse;
-import org.eclipse.eripgrep.model.ERipSearchRequest;
+import org.eclipse.eripgrep.model.*;
+import org.eclipse.eripgrep.ui.ERipGrepViewPart;
 import org.eclipse.jface.action.*;
 import org.eclipse.search.internal.ui.SearchPluginImages;
 import org.eclipse.search2.internal.ui.SearchMessages;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.widgets.*;
 
-class SearchHistoryDropDownAction extends Action implements IMenuCreator {
+public class SearchHistoryDropDownAction extends Action implements IMenuCreator {
 
   private class ShowSearchFromHistoryAction extends Action {
     private ERipGrepViewPart ripGrepViewPart;
-    private ERipSearchRequest searchRequest;
-    private ERipGrepResponse response;
+    private Request searchRequest;
+    private Response response;
 
-    public ShowSearchFromHistoryAction(ERipGrepViewPart ripGrepViewPart, ERipSearchRequest searchRequest, ERipGrepResponse response) {
+    public ShowSearchFromHistoryAction(ERipGrepViewPart ripGrepViewPart, Request searchRequest, Response response) {
       super("", AS_RADIO_BUTTON); //$NON-NLS-1$
       this.searchRequest = searchRequest;
       this.ripGrepViewPart = ripGrepViewPart;
       this.response = response;
 
       String label = escapeAmp(searchRequest.getText());
-      if (ERipGrepViewPart.getCurrentJob() != null && ERipGrepViewPart.getCurrentJob().getState() == Job.RUNNING)
-        label = MessageFormat.format(SearchMessages.SearchDropDownAction_running_message, label);
-      // fix for bug 38049
       if (label.indexOf('@') >= 0)
         label += '@';
       if (searchRequest.getTime() != -1) {
@@ -100,12 +96,12 @@ class SearchHistoryDropDownAction extends Action implements IMenuCreator {
   public Menu getMenu(Control parent) {
     disposeMenu();
     fMenu = new Menu(parent);
-    List<Entry<ERipSearchRequest, ERipGrepResponse>> history = new ArrayList<>(ripGrepViewPart.getHistory().entrySet());
+    List<Entry<Request, Response>> history = new ArrayList<>(ripGrepViewPart.getHistory().entrySet());
     if (history.size() > 0) {
       Collections.reverse(history);
-      ERipGrepResponse currentSearch = ripGrepViewPart.getCurrent();
+      Response currentSearch = ripGrepViewPart.getCurrent();
 
-      for (Entry<ERipSearchRequest, ERipGrepResponse> search : history) {
+      for (Entry<Request, Response> search : history) {
         ShowSearchFromHistoryAction action = new ShowSearchFromHistoryAction(ripGrepViewPart, search.getKey(), search.getValue());
         action.setChecked(currentSearch != null && Objects.equals(search.getValue(), currentSearch));
         addActionToMenu(fMenu, action);

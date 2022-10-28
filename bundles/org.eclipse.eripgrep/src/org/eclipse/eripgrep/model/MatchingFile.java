@@ -1,18 +1,16 @@
 package org.eclipse.eripgrep.model;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
-import org.eclipse.core.resources.IProject;
-import org.eclipse.core.resources.IResource;
+import org.eclipse.core.resources.*;
 
 public class MatchingFile {
 
   private final static int FILEPATH_PREFIX_LENGTH = 9;
   private final static int FILEPATH_SUFIX_LENGTH = 4;
 
-  private final SearchProject searchProject;
+  private final SearchedProject searchProject;
   private final String filePathString;
 
   private final List<MatchingLine> matchingLines = new ArrayList<>();
@@ -21,7 +19,7 @@ public class MatchingFile {
   private final String filePath;
   private final String fileName;
 
-  public MatchingFile(SearchProject searchProject, String filePathString) {
+  public MatchingFile(SearchedProject searchProject, String filePathString) {
     this.searchProject = searchProject;
     this.filePathString = filePathString;
     this.filePath = getFilePath(filePathString);
@@ -42,7 +40,7 @@ public class MatchingFile {
     return null;
   }
 
-  public SearchProject getSearchProject() {
+  public SearchedProject getSearchProject() {
     return searchProject;
   }
 

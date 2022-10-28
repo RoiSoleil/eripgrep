@@ -1,15 +1,16 @@
 package org.eclipse.eripgrep.model;
 
 import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.eripgrep.ERipGrepProgressListener;
+import org.eclipse.eripgrep.ProgressListener;
 
-public class ERipSearchRequest {
+public class Request {
 
   private long time = -1;
   private String text;
   private boolean caseSensitive;
   private boolean regularExpression;
-  private ERipGrepProgressListener listener;
+
+  private ProgressListener listener;
   private IProgressMonitor progressMonitor;
 
   public long getTime() {
@@ -44,11 +45,11 @@ public class ERipSearchRequest {
     this.regularExpression = regularExpression;
   }
 
-  public ERipGrepProgressListener getListener() {
+  public ProgressListener getListener() {
     return listener;
   }
 
-  public void setListener(ERipGrepProgressListener listener) {
+  public void setListener(ProgressListener listener) {
     this.listener = listener;
   }
 

@@ -1,5 +1,7 @@
 package org.eclipse.eripgrep.ui;
 
+import static org.eclipse.eripgrep.utils.PreferenceConstantes.*;
+
 import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.eripgrep.Activator;
 import org.eclipse.jface.preference.*;
@@ -11,24 +13,9 @@ import org.eclipse.swt.widgets.*;
 import org.eclipse.ui.*;
 import org.eclipse.ui.preferences.ScopedPreferenceStore;
 
-/**
- * The {@link PreferencePage} for ERipGrep.
- */
-public class ERipGrepPreferencePage extends FieldEditorPreferencePage implements IWorkbenchPreferencePage {
+public class PreferencePage extends FieldEditorPreferencePage implements IWorkbenchPreferencePage {
 
   public static final String ID = "org.eclipse.eripgrep.PreferencePage";
-
-  public static final String RIPGREP_PATH = "RIPGREP_PATH";
-  public static final String SEARCH_IN_CLOSED_PROJECT = "SEARCH_IN_CLOSED_PROJECT";
-  public static final String THREAD_NUMBER = "THREAD_NUMBER";
-  public static final String ALPHABETICAL_SORT = "ALPHABETICAL_SORT";
-  public static final String GROUP_BY_FOLDER = "GROUP_BY_FOLDER";
-  public static final String CASE_SENSITIVE = "CASE_SENSITIVE";
-  public static final String REGULAR_EXPRESSION = "REGULAR_EXPRESSION";
-  public static final String HISTORY = "HISTORY";
-
-  public ERipGrepPreferencePage() {
-  }
 
   @Override
   protected void createFieldEditors() {

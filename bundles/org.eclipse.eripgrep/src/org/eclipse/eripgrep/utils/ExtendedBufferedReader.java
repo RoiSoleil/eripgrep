@@ -1,8 +1,6 @@
 package org.eclipse.eripgrep.utils;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.Reader;
+import java.io.*;
 
 public final class ExtendedBufferedReader extends BufferedReader {
 

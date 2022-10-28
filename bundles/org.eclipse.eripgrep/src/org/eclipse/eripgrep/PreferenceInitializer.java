@@ -1,13 +1,10 @@
 package org.eclipse.eripgrep;
 
-import static org.eclipse.eripgrep.ui.ERipGrepPreferencePage.*;
+import static org.eclipse.eripgrep.utils.PreferenceConstantes.*;
 
 import org.eclipse.core.runtime.preferences.*;
 
-public class ERipGrepPreferenceInitializer extends AbstractPreferenceInitializer {
-
-  public ERipGrepPreferenceInitializer() {
-  }
+public class PreferenceInitializer extends AbstractPreferenceInitializer {
 
   @Override
   public void initializeDefaultPreferences() {

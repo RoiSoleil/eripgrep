@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <site>
    <feature id="org.eclipse.eripgrep.feature">
-      <category name="corg.eclipse.eripgrep"/>
+      <category name="org.eclipse.eripgrep"/>
    </feature>
    <category-def name="org.eclipse.eripgrep" label="ERipGrep"/>
 </site>

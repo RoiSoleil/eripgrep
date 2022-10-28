@@ -1,10 +1,10 @@
-package org.eclipse.eripgrep.ui;
+package org.eclipse.eripgrep.ui.copy;
 
 import org.eclipse.jface.action.Action;
 import org.eclipse.search.internal.ui.SearchPluginImages;
 import org.eclipse.search2.internal.ui.SearchMessages;
 
-class SearchAgainAction extends Action {
+public class SearchAgainAction extends Action {
 
   public SearchAgainAction() {
     setText(SearchMessages.SearchAgainAction_label);

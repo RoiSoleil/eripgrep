@@ -37,4 +37,8 @@ public class Activator extends AbstractUIPlugin {
   public static Activator getDefault() {
     return plugin;
   }
+
+  public static void error(Throwable t) {
+    getDefault().getLog().error(t.getLocalizedMessage(), t);
+  }
 }

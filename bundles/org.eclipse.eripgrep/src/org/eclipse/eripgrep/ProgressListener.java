@@ -1,8 +1,9 @@
 package org.eclipse.eripgrep;
 
-public interface ERipGrepProgressListener {
+public interface ProgressListener {
 
   public void update(Object element);
 
   public void done();
+
 }

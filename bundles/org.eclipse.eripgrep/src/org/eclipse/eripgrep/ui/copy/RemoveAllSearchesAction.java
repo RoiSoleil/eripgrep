@@ -1,12 +1,12 @@
-package org.eclipse.eripgrep.ui;
+package org.eclipse.eripgrep.ui.copy;
 
+import org.eclipse.eripgrep.ui.ERipGrepViewPart;
 import org.eclipse.jface.action.Action;
-import org.eclipse.jface.dialogs.IDialogConstants;
-import org.eclipse.jface.dialogs.MessageDialog;
+import org.eclipse.jface.dialogs.*;
 import org.eclipse.search.internal.ui.SearchPlugin;
 import org.eclipse.search2.internal.ui.SearchMessages;
 
-class RemoveAllSearchesAction extends Action {
+public class RemoveAllSearchesAction extends Action {
 
   private ERipGrepViewPart ripGrepViewPart;
 
@@ -16,11 +16,6 @@ class RemoveAllSearchesAction extends Action {
     setToolTipText(SearchMessages.RemoveAllSearchesAction_tooltip);
   }
 
-  /**
-   * Returns whether to ask for confirmation on search history clear. Consults the preference and prompts the user if necessary.
-   *
-   * @return <code>true</code> if clear search history should be confirmed by user, and <code>false</code> otherwise.
-   */
   private boolean promptForConfirmation() {
 
     MessageDialog dialog = new MessageDialog(SearchPlugin.getActiveWorkbenchShell(),
