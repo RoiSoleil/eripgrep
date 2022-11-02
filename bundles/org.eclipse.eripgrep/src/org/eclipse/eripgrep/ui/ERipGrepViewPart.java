@@ -1,6 +1,7 @@
 package org.eclipse.eripgrep.ui;
 
-import static org.eclipse.eripgrep.ui.UiUtils.*;
+import static org.eclipse.eripgrep.ui.UiUtils.createImageDescriptorFromURL;
+import static org.eclipse.eripgrep.ui.UiUtils.createImageFromURL;
 import static org.eclipse.eripgrep.utils.PreferenceConstantes.*;
 
 import java.io.*;
@@ -13,7 +14,8 @@ import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 
-import org.eclipse.core.filesystem.*;
+import org.eclipse.core.filesystem.EFS;
+import org.eclipse.core.filesystem.IFileStore;
 import org.eclipse.core.resources.*;
 import org.eclipse.core.runtime.*;
 import org.eclipse.core.runtime.jobs.*;
@@ -21,8 +23,10 @@ import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.eripgrep.*;
 import org.eclipse.eripgrep.model.*;
 import org.eclipse.eripgrep.model.Error;
-import org.eclipse.eripgrep.ui.copy.*;
-import org.eclipse.eripgrep.ui.model.*;
+import org.eclipse.eripgrep.ui.copy.SearchAgainAction;
+import org.eclipse.eripgrep.ui.copy.SearchHistoryDropDownAction;
+import org.eclipse.eripgrep.ui.model.Folder;
+import org.eclipse.eripgrep.ui.model.SeeAll;
 import org.eclipse.eripgrep.utils.*;
 import org.eclipse.jface.action.*;
 import org.eclipse.jface.resource.ImageDescriptor;
@@ -36,9 +40,11 @@ import org.eclipse.search2.internal.ui.basic.views.*;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.*;
 import org.eclipse.swt.graphics.Image;
-import org.eclipse.swt.layout.*;
+import org.eclipse.swt.layout.GridData;
+import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.*;
-import org.eclipse.ui.*;
+import org.eclipse.ui.IEditorPart;
+import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.ide.IDE;
 import org.eclipse.ui.part.ViewPart;
 import org.eclipse.ui.texteditor.ITextEditor;
@@ -210,7 +216,11 @@ public class ERipGrepViewPart extends ViewPart {
         SearchedProject searchProject = folder.getSearchProject();
         searchProject.getMatchingFiles().removeAll(searchProject.getMatchingFiles().stream()
             .filter(matchingFile -> matchingFile.getFilePath().startsWith(_folder.getAbsolutePath())).toList());
-        treeViewer.refresh(searchProject);
+        if (searchProject.getMatchingFiles().isEmpty()) {
+          internalRemoveSelected(searchProject);
+        } else {
+          treeViewer.refresh(searchProject);
+        }
       }
     }
 
@@ -279,7 +289,7 @@ public class ERipGrepViewPart extends ViewPart {
     getViewSite().getActionBars().getToolBarManager().add(cancelSearchAction);
     getViewSite().getActionBars().getToolBarManager().add(new SearchHistoryDropDownAction(this));
     getViewSite().getActionBars().getToolBarManager().add(new Separator());
-    Action sortAlphabeticallyAction = new Action("Sort alphabetically", IAction.AS_PUSH_BUTTON) {
+    Action sortAlphabeticallyAction = new Action("Sort alphabetically", IAction.AS_CHECK_BOX) {
       @Override
       public void run() {
         ALPHABETICAL_SORT = !ALPHABETICAL_SORT;
@@ -290,7 +300,7 @@ public class ERipGrepViewPart extends ViewPart {
     sortAlphabeticallyAction.setImageDescriptor(alphabSortImage);
     sortAlphabeticallyAction.setChecked(ALPHABETICAL_SORT);
     getViewSite().getActionBars().getToolBarManager().add(sortAlphabeticallyAction);
-    Action groupByFolderAction = new Action("Group by folder") {
+    Action groupByFolderAction = new Action("Group by folder", IAction.AS_CHECK_BOX) {
       @Override
       public void run() {
         Folder.clear();
@@ -300,6 +310,7 @@ public class ERipGrepViewPart extends ViewPart {
       }
     };
     groupByFolderAction.setImageDescriptor(groupByFolderImage);
+    groupByFolderAction.setChecked(GROUP_BY_FOLDER);
     getViewSite().getActionBars().getToolBarManager().add(groupByFolderAction);
     getViewSite().getActionBars().getToolBarManager().add(new Separator());
     Action openSettingsAction = new Action("Settings", settingsImage) {

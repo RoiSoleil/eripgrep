@@ -3,10 +3,10 @@
 	<parent>
 		<groupId>org.eclipse.eripgrep</groupId>
 		<artifactId>org.eclipse.eripgrep.releng</artifactId>
-		<version>0.1.0-SNAPSHOT</version>
+		<version>1.0.0-SNAPSHOT</version>
 		<relativePath>../../releng</relativePath>
 	</parent>
 	<artifactId>org.eclipse.eripgrep</artifactId>
-	<version>0.1.0-SNAPSHOT</version>
+	<version>1.0.0-SNAPSHOT</version>
 	<packaging>eclipse-plugin</packaging>
 </project>

@@ -50,7 +50,7 @@ public class Folder {
   }
 
   public static Folder getOrCreate(SearchedProject searchProject, File parentFile, String name, IFolder folder) {
-    return cache.computeIfAbsent(parentFile, o -> new Folder(searchProject, parentFile, name, folder));
+    return cache.computeIfAbsent(new File(parentFile, name), o -> new Folder(searchProject, parentFile, name, folder));
   }
 
   public static void clear() {

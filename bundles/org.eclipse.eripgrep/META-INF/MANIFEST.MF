@@ -3,7 +3,7 @@ Bundle-ManifestVersion: 2
 Bundle-Name: %pluginName
 Bundle-RequiredExecutionEnvironment: JavaSE-17
 Bundle-SymbolicName: org.eclipse.eripgrep;singleton:=true
-Bundle-Version: 0.1.0.qualifier
+Bundle-Version: 1.0.0.qualifier
 Bundle-Activator: org.eclipse.eripgrep.Activator
 Bundle-ClassPath: lib/juniversalchardet-2.4.0.jar,
  .

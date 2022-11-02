@@ -5,6 +5,7 @@ import java.util.regex.*;
 public class MatchingLine {
 
   private static final String ANSI_END = "\u001B[0m";
+  private static final Pattern LINE_NUMBER_PATTERN = Pattern.compile("\u001B\\[0m\u001B\\[32m\\d*?" + ANSI_END.replace("[", "\\[") + ":.*");
   private static final Pattern MATCHING_PATTERN = Pattern.compile("\u001B\\[0m\u001B\\[1m\u001B\\[31m(.*?)" + ANSI_END.replace("[", "\\["));
   private static final int LINENUMBER_PREFIX_LENGTH = 9;
 
@@ -42,5 +43,9 @@ public class MatchingLine {
 
   public Matcher getMatcher() {
     return MATCHING_PATTERN.matcher(matchingLine);
+  }
+
+  public static boolean isMatchingLine(String line) {
+    return LINE_NUMBER_PATTERN.asPredicate().test(line);
   }
 }

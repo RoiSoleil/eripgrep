@@ -8,9 +8,9 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
 
-import org.eclipse.core.resources.*;
+import org.eclipse.core.resources.IProject;
+import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.core.runtime.preferences.*;
 import org.eclipse.eripgrep.model.*;
 import org.eclipse.eripgrep.model.Error;
 import org.eclipse.eripgrep.ui.UiUtils;
@@ -108,6 +108,7 @@ public class Engine {
         try (BufferedReader br = new BufferedReader(
             new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
           MatchingFile matchingFile = null;
+          MatchingLine matchingLine = null;
           String line;
           while (!progressMonitor.isCanceled() && (line = br.readLine()) != null) {
             if (line.isEmpty()) {
@@ -120,7 +121,12 @@ public class Engine {
               SearchedProject searchProject = getOrCreateSearchProject(response, longerProjectByOSString, filePath);
               matchingFile = new MatchingFile(searchProject, line);
             } else {
-              new MatchingLine(matchingFile, line);
+              if (MatchingLine.isMatchingLine(line)) {
+                matchingLine = new MatchingLine(matchingFile, line);
+              } else {
+                matchingFile.getMatchingLines().remove(matchingLine);
+                matchingLine = new MatchingLine(matchingFile, matchingLine.getLine() + line);
+              }
             }
           }
           if (matchingFile != null && !matchingFile.getMatchingLines().isEmpty()) {
