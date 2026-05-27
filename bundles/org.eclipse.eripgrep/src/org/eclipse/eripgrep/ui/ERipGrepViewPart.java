@@ -1,13 +1,22 @@
 package org.eclipse.eripgrep.ui;
 
-import static org.eclipse.eripgrep.ui.UiUtils.createImageDescriptorFromURL;
-import static org.eclipse.eripgrep.ui.UiUtils.createImageFromURL;
+import static org.eclipse.eripgrep.ui.UiUtils.*;
 import static org.eclipse.eripgrep.utils.PreferenceConstantes.*;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.charset.Charset;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
@@ -16,33 +25,81 @@ import java.util.stream.Collectors;
 
 import org.eclipse.core.filesystem.EFS;
 import org.eclipse.core.filesystem.IFileStore;
-import org.eclipse.core.resources.*;
-import org.eclipse.core.runtime.*;
-import org.eclipse.core.runtime.jobs.*;
+import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IFolder;
+import org.eclipse.core.resources.IResource;
+import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Path;
+import org.eclipse.core.runtime.SafeRunner;
+import org.eclipse.core.runtime.Status;
+import org.eclipse.core.runtime.jobs.IJobChangeEvent;
+import org.eclipse.core.runtime.jobs.Job;
+import org.eclipse.core.runtime.jobs.JobChangeAdapter;
 import org.eclipse.core.runtime.preferences.InstanceScope;
-import org.eclipse.eripgrep.*;
-import org.eclipse.eripgrep.model.*;
+import org.eclipse.eripgrep.Activator;
+import org.eclipse.eripgrep.Engine;
+import org.eclipse.eripgrep.ProgressListener;
 import org.eclipse.eripgrep.model.Error;
+import org.eclipse.eripgrep.model.MatchingFile;
+import org.eclipse.eripgrep.model.MatchingLine;
+import org.eclipse.eripgrep.model.Request;
+import org.eclipse.eripgrep.model.Response;
+import org.eclipse.eripgrep.model.SearchedProject;
 import org.eclipse.eripgrep.ui.copy.SearchAgainAction;
 import org.eclipse.eripgrep.ui.copy.SearchHistoryDropDownAction;
 import org.eclipse.eripgrep.ui.model.Folder;
 import org.eclipse.eripgrep.ui.model.SeeAll;
-import org.eclipse.eripgrep.utils.*;
-import org.eclipse.jface.action.*;
+import org.eclipse.eripgrep.utils.ExtendedBufferedReader;
+import org.eclipse.eripgrep.utils.PreferenceConstantes;
+import org.eclipse.eripgrep.utils.Utils;
+import org.eclipse.jface.action.Action;
+import org.eclipse.jface.action.IAction;
+import org.eclipse.jface.action.MenuManager;
+import org.eclipse.jface.action.Separator;
 import org.eclipse.jface.resource.ImageDescriptor;
-import org.eclipse.jface.viewers.*;
+import org.eclipse.jface.viewers.IOpenListener;
+import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.jface.viewers.ITreeContentProvider;
+import org.eclipse.jface.viewers.OpenEvent;
+import org.eclipse.jface.viewers.StructuredSelection;
+import org.eclipse.jface.viewers.StyledString;
+import org.eclipse.jface.viewers.TableViewer;
+import org.eclipse.jface.viewers.TreeViewer;
 import org.eclipse.search.internal.ui.SearchPluginImages;
-import org.eclipse.search.internal.ui.text.*;
+import org.eclipse.search.internal.ui.text.DecoratingFileSearchLabelProvider;
+import org.eclipse.search.internal.ui.text.EditorOpener;
+import org.eclipse.search.internal.ui.text.FileLabelProvider;
 import org.eclipse.search.ui.ISearchQuery;
-import org.eclipse.search.ui.text.*;
+import org.eclipse.search.ui.text.AbstractTextSearchResult;
+import org.eclipse.search.ui.text.AbstractTextSearchViewPage;
+import org.eclipse.search.ui.text.IEditorMatchAdapter;
+import org.eclipse.search.ui.text.IFileMatchAdapter;
 import org.eclipse.search2.internal.ui.CancelSearchAction;
-import org.eclipse.search2.internal.ui.basic.views.*;
+import org.eclipse.search2.internal.ui.basic.views.CollapseAllAction;
+import org.eclipse.search2.internal.ui.basic.views.ExpandAllAction;
+import org.eclipse.search2.internal.ui.basic.views.RemoveSelectedMatchesAction;
+import org.eclipse.search2.internal.ui.basic.views.ShowNextResultAction;
+import org.eclipse.search2.internal.ui.basic.views.ShowPreviousResultAction;
+import org.eclipse.search2.internal.ui.basic.views.TreeViewerNavigator;
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.events.*;
+import org.eclipse.swt.dnd.Clipboard;
+import org.eclipse.swt.dnd.TextTransfer;
+import org.eclipse.swt.dnd.Transfer;
+import org.eclipse.swt.events.KeyAdapter;
+import org.eclipse.swt.events.KeyEvent;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
-import org.eclipse.swt.widgets.*;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Event;
+import org.eclipse.swt.widgets.Menu;
+import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.ide.IDE;
@@ -215,7 +272,7 @@ public class ERipGrepViewPart extends ViewPart {
         File _folder = new File(folder.getParentFile(), folder.getName());
         SearchedProject searchProject = folder.getSearchProject();
         searchProject.getMatchingFiles().removeAll(searchProject.getMatchingFiles().stream()
-            .filter(matchingFile -> matchingFile.getFilePath().startsWith(_folder.getAbsolutePath())).toList());
+                                                                .filter(matchingFile -> matchingFile.getFilePath().startsWith(_folder.getAbsolutePath())).toList());
         if (searchProject.getMatchingFiles().isEmpty()) {
           internalRemoveSelected(searchProject);
         } else {
@@ -404,7 +461,39 @@ public class ERipGrepViewPart extends ViewPart {
     menuMgr.setRemoveAllWhenShown(true);
     menuMgr.addMenuListener(mgr -> {
       mgr.add(new Action("Copy") {
-        // TODO
+        @Override
+        public void runWithEvent(Event event) {
+          IStructuredSelection selection = treeViewer.getStructuredSelection();
+          StringBuilder sb = new StringBuilder();
+          for (Object element : selection.toArray()) {
+            if (element instanceof MatchingLine matchingLine) {
+              sb.append(matchingLine.getMatchingFile().getFilePath())
+                .append(":")
+                .append(matchingLine.getLineNumber())
+                .append(": ")
+                .append(matchingLine.getMatchingLine());
+            } else if (element instanceof MatchingFile matchingFile) {
+              sb.append(matchingFile.getFilePath());
+            } else if (element instanceof Folder folder) {
+              sb.append(folder.getName());
+            } else if (element instanceof SearchedProject searchedProject) {
+              sb.append(searchedProject.getProject().getName());
+            } else if (element instanceof Error error) {
+              sb.append(error.getError());
+            } else {
+              sb.append(String.valueOf(element));
+            }
+            sb.append(System.lineSeparator());
+          }
+          Clipboard clipboard = new Clipboard(Display.getDefault());
+          try {
+            clipboard.setContents(
+                new Object[] { sb.toString() },
+                new Transfer[] { TextTransfer.getInstance() });
+          } finally {
+            clipboard.dispose();
+          }
+        }
       });
     });
     getSite().registerContextMenu(menuMgr, treeViewer);
@@ -473,7 +562,7 @@ public class ERipGrepViewPart extends ViewPart {
             if (firstLevelFolders.get(root) != null) {
               List<MatchingFile> matchingFiles = firstLevelFolders.get(root);
               children.addAll(Arrays
-                  .asList(getMaxChildren(searchProject, matchingFiles, ALPHABETICAL_SORT ? MATCHINGFILE_COMPARATOR : null)));
+                                    .asList(getMaxChildren(searchProject, matchingFiles, ALPHABETICAL_SORT ? MATCHINGFILE_COMPARATOR : null)));
             }
             return children.toArray();
           }
@@ -591,7 +680,7 @@ public class ERipGrepViewPart extends ViewPart {
       IEditorPart editorPart = IDE.openInternalEditorOnFileStore(getSite().getPage(), fileStore);
       if (editorPart instanceof ITextEditor) {
         try (BufferedReader bufferedReader = ReaderFactory
-            .createBufferedReader(new File(matchingLine.getMatchingFile().getFilePath()))) {
+                                                          .createBufferedReader(new File(matchingLine.getMatchingFile().getFilePath()))) {
           int lineNumber = 1;
           int offset = 0;
           String line = null;
@@ -779,12 +868,12 @@ public class ERipGrepViewPart extends ViewPart {
   private static LinkedHashMap<Request, Response> loadHistory() {
     LinkedHashMap<Request, Response> history = new LinkedHashMap<>();
     Arrays.asList(Utils.getPreferences().get(HISTORY, "").split("\\|")).stream()
-        .filter(Predicate.not(String::isBlank))
-        .forEach(r -> {
-          Request request = new Request();
-          request.setText(r);
-          history.put(request, null);
-        });
+          .filter(Predicate.not(String::isBlank))
+          .forEach(r -> {
+            Request request = new Request();
+            request.setText(r);
+            history.put(request, null);
+          });
     return history;
   }
 
