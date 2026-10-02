@@ -5,9 +5,9 @@
       <stop offset="1" stop-color="#22d3ee"/>
     </linearGradient>
   </defs>
-  <rect x="0.5" y="1.5" width="15" height="13" rx="3" fill="url(#edge)"/>
-  <rect x="1.5" y="2.5" width="13" height="11" rx="2.2" fill="#16161e"/>
-  <rect x="4.9" y="6.2" width="3.4" height="1.6" rx="0.5" fill="#ff9e64"/>
-  <path d="M9.1 9.5 L11.6 11.6" fill="none" stroke="#ff9e64" stroke-width="1.9" stroke-linecap="round"/>
-  <circle cx="6.6" cy="7" r="3.1" fill="none" stroke="#22d3ee" stroke-width="1.5"/>
+  <rect x="0" y="0" width="16" height="16" rx="3" fill="url(#edge)"/>
+  <rect x="1.2" y="1.2" width="13.6" height="13.6" rx="2.2" fill="#16161e"/>
+  <rect x="4.2" y="6.2" width="4.6" height="1.6" rx="0.5" fill="#ff9e64"/>
+  <path d="M9.9 9.9 L12.8 12.8" fill="none" stroke="#ff9e64" stroke-width="2.2" stroke-linecap="round"/>
+  <circle cx="6.5" cy="7" r="3.9" fill="none" stroke="#22d3ee" stroke-width="1.6"/>
 </svg>
