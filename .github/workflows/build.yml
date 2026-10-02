@@ -55,16 +55,16 @@ jobs:
       -  name: Publish p2 update site
          if: github.event_name == 'push'
          env:
-            ACTIONS_TOKEN: ${{ secrets.ACTIONS_TOKEN }}
-         run: |-
-            git clone --branch update-site https://github.com/RoiSoleil/eripgrep
-            cd eripgrep
-            cd latest
-            git config user.name "RoiSoleil"
-            git config user.email "helios.gilles@gmail.com"
-            rm -fr *
-            cp -r ../../update-site/org.eclipse.eripgrep/target/repository/* .
-            git add .
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+         run: |
+            remote="https://x-access-token:$GITHUB_TOKEN@github.com/$GITHUB_REPOSITORY"
+            git clone --depth 1 --branch update-site "$remote" site
+            rm -rf site/latest
+            mkdir -p site/latest
+            cp -r update-site/org.eclipse.eripgrep/target/repository/* site/latest/
+            cd site
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
             git commit -m "New version of the update site"
-            git push -f https://RoiSoleil:$ACTIONS_TOKEN@github.com/RoiSoleil/eripgrep update-site
-         shell: bash
+            git push origin update-site
