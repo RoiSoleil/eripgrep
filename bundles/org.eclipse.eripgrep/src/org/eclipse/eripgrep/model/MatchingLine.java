@@ -1,27 +1,26 @@
 package org.eclipse.eripgrep.model;
 
-import java.util.regex.*;
+import java.util.List;
 
+import org.eclipse.eripgrep.core.Span;
+
+/**
+ * A line with matches or, without any match, a line of context.
+ */
 public class MatchingLine {
 
-  private static final String ANSI_END = "\u001B[0m";
-  private static final Pattern LINE_NUMBER_PATTERN = Pattern.compile("\u001B\\[0m\u001B\\[32m\\d*?" + ANSI_END.replace("[", "\\[") + ":.*");
-  private static final Pattern MATCHING_PATTERN = Pattern.compile("\u001B\\[0m\u001B\\[1m\u001B\\[31m(.*?)" + ANSI_END.replace("[", "\\["));
-  private static final int LINENUMBER_PREFIX_LENGTH = 9;
+  private final MatchingFile matchingFile;
+  private final long lineNumber;
+  private final String line;
+  private final List<Span> spans;
+  private final List<String> replacements;
 
-  final MatchingFile matchingFile;
-  final String line;
-
-  private final int lineNumber;
-  private final String matchingLine;
-
-  public MatchingLine(MatchingFile matchingFile, String line) {
+  public MatchingLine(MatchingFile matchingFile, long lineNumber, String line, List<Span> spans, List<String> replacements) {
     this.matchingFile = matchingFile;
+    this.lineNumber = lineNumber;
     this.line = line;
-    String tmp = line.substring(LINENUMBER_PREFIX_LENGTH);
-    int i = tmp.indexOf(ANSI_END);
-    lineNumber = Integer.parseInt(tmp.substring(0, i));
-    matchingLine = tmp.substring(i + ANSI_END.length() + 1);
+    this.spans = List.copyOf(spans);
+    this.replacements = List.copyOf(replacements);
     matchingFile.getMatchingLines().add(this);
   }
 
@@ -29,23 +28,33 @@ public class MatchingLine {
     return matchingFile;
   }
 
+  /**
+   * The text, several lines for a multiline match.
+   */
   public String getLine() {
     return line;
   }
 
-  public int getLineNumber() {
+  public long getLineNumber() {
     return lineNumber;
   }
 
-  public String getMatchingLine() {
-    return matchingLine;
+  public int getLineCount() {
+    return (int) line.chars().filter(c -> c == '\n').count() + 1;
   }
 
-  public Matcher getMatcher() {
-    return MATCHING_PATTERN.matcher(matchingLine);
+  public List<Span> getSpans() {
+    return spans;
   }
 
-  public static boolean isMatchingLine(String line) {
-    return LINE_NUMBER_PATTERN.asPredicate().test(line);
+  /**
+   * The replacement of each match, empty if the search had no replacement.
+   */
+  public List<String> getReplacements() {
+    return replacements;
+  }
+
+  public boolean isContext() {
+    return spans.isEmpty();
   }
 }

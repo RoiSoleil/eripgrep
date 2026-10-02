@@ -2,8 +2,9 @@ package org.eclipse.eripgrep;
 
 public interface ProgressListener {
 
-  public void update(Object element);
-
-  public void done();
+  /**
+   * The response has new results. Called from the thread of the search.
+   */
+  public void update();
 
 }

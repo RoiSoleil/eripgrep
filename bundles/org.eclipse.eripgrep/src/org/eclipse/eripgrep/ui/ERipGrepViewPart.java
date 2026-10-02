@@ -3,455 +3,372 @@ package org.eclipse.eripgrep.ui;
 import static org.eclipse.eripgrep.ui.UiUtils.*;
 import static org.eclipse.eripgrep.utils.PreferenceConstantes.*;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.charset.Charset;
+import java.text.DateFormat;
+import java.text.NumberFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
+import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Predicate;
-import java.util.regex.Matcher;
-import java.util.stream.Collectors;
 
 import org.eclipse.core.filesystem.EFS;
-import org.eclipse.core.filesystem.IFileStore;
 import org.eclipse.core.resources.IFile;
-import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.resources.IResource;
+import org.eclipse.core.runtime.Adapters;
 import org.eclipse.core.runtime.CoreException;
-import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.SafeRunner;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.IJobChangeEvent;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.core.runtime.jobs.JobChangeAdapter;
-import org.eclipse.core.runtime.preferences.InstanceScope;
-import org.eclipse.eripgrep.Activator;
 import org.eclipse.eripgrep.Engine;
-import org.eclipse.eripgrep.ProgressListener;
+import org.eclipse.eripgrep.core.Span;
+import org.eclipse.eripgrep.core.TextOffsets;
 import org.eclipse.eripgrep.model.Error;
 import org.eclipse.eripgrep.model.MatchingFile;
 import org.eclipse.eripgrep.model.MatchingLine;
 import org.eclipse.eripgrep.model.Request;
 import org.eclipse.eripgrep.model.Response;
+import org.eclipse.eripgrep.model.Scope;
 import org.eclipse.eripgrep.model.SearchedProject;
-import org.eclipse.eripgrep.ui.copy.SearchAgainAction;
-import org.eclipse.eripgrep.ui.copy.SearchHistoryDropDownAction;
 import org.eclipse.eripgrep.ui.model.Folder;
 import org.eclipse.eripgrep.ui.model.SeeAll;
-import org.eclipse.eripgrep.utils.ExtendedBufferedReader;
-import org.eclipse.eripgrep.utils.PreferenceConstantes;
 import org.eclipse.eripgrep.utils.Utils;
 import org.eclipse.jface.action.Action;
+import org.eclipse.jface.action.ActionContributionItem;
 import org.eclipse.jface.action.IAction;
+import org.eclipse.jface.action.IMenuCreator;
+import org.eclipse.jface.action.IMenuManager;
+import org.eclipse.jface.action.IToolBarManager;
 import org.eclipse.jface.action.MenuManager;
 import org.eclipse.jface.action.Separator;
+import org.eclipse.jface.dialogs.IDialogConstants;
+import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.resource.ImageDescriptor;
-import org.eclipse.jface.viewers.IOpenListener;
+import org.eclipse.jface.resource.JFaceResources;
+import org.eclipse.jface.resource.LocalResourceManager;
+import org.eclipse.jface.resource.ResourceManager;
+import org.eclipse.jface.text.IDocument;
+import org.eclipse.jface.viewers.DelegatingStyledCellLabelProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
-import org.eclipse.jface.viewers.ITreeContentProvider;
-import org.eclipse.jface.viewers.OpenEvent;
 import org.eclipse.jface.viewers.StructuredSelection;
-import org.eclipse.jface.viewers.StyledString;
-import org.eclipse.jface.viewers.TableViewer;
+import org.eclipse.jface.viewers.TreePath;
+import org.eclipse.jface.viewers.TreeSelection;
 import org.eclipse.jface.viewers.TreeViewer;
-import org.eclipse.search.internal.ui.SearchPluginImages;
-import org.eclipse.search.internal.ui.text.DecoratingFileSearchLabelProvider;
-import org.eclipse.search.internal.ui.text.EditorOpener;
-import org.eclipse.search.internal.ui.text.FileLabelProvider;
-import org.eclipse.search.ui.ISearchQuery;
-import org.eclipse.search.ui.text.AbstractTextSearchResult;
-import org.eclipse.search.ui.text.AbstractTextSearchViewPage;
-import org.eclipse.search.ui.text.IEditorMatchAdapter;
-import org.eclipse.search.ui.text.IFileMatchAdapter;
-import org.eclipse.search2.internal.ui.CancelSearchAction;
-import org.eclipse.search2.internal.ui.basic.views.CollapseAllAction;
-import org.eclipse.search2.internal.ui.basic.views.ExpandAllAction;
-import org.eclipse.search2.internal.ui.basic.views.RemoveSelectedMatchesAction;
-import org.eclipse.search2.internal.ui.basic.views.ShowNextResultAction;
-import org.eclipse.search2.internal.ui.basic.views.ShowPreviousResultAction;
-import org.eclipse.search2.internal.ui.basic.views.TreeViewerNavigator;
+import org.eclipse.ltk.ui.refactoring.RefactoringWizard;
+import org.eclipse.ltk.ui.refactoring.RefactoringWizardOpenOperation;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.custom.SashForm;
 import org.eclipse.swt.dnd.Clipboard;
 import org.eclipse.swt.dnd.TextTransfer;
 import org.eclipse.swt.dnd.Transfer;
 import org.eclipse.swt.events.KeyAdapter;
 import org.eclipse.swt.events.KeyEvent;
-import org.eclipse.swt.events.SelectionAdapter;
-import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.events.SelectionListener;
 import org.eclipse.swt.graphics.Image;
+import org.eclipse.swt.graphics.Point;
+import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.program.Program;
 import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
+import org.eclipse.swt.widgets.Link;
 import org.eclipse.swt.widgets.Menu;
 import org.eclipse.swt.widgets.Text;
+import org.eclipse.swt.widgets.ToolBar;
+import org.eclipse.swt.widgets.ToolItem;
+import org.eclipse.ui.IEditorDescriptor;
 import org.eclipse.ui.IEditorPart;
+import org.eclipse.ui.IEditorReference;
+import org.eclipse.ui.ISelectionListener;
+import org.eclipse.ui.IWorkbenchActionConstants;
+import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.PartInitException;
+import org.eclipse.ui.PlatformUI;
+import org.eclipse.ui.editors.text.EditorsUI;
 import org.eclipse.ui.ide.IDE;
+import org.eclipse.ui.part.FileEditorInput;
 import org.eclipse.ui.part.ViewPart;
 import org.eclipse.ui.texteditor.ITextEditor;
-import org.mozilla.universalchardet.ReaderFactory;
 
 /**
  * A view for RipGrep.
  */
-@SuppressWarnings("restriction")
 public class ERipGrepViewPart extends ViewPart {
 
   public static final String ID = "org.eclipse.eripgrep.ERipGrepView";
-  public static boolean ALPHABETICAL_SORT = Utils.getPreferences().getBoolean(PreferenceConstantes.ALPHABETICAL_SORT, false);
-  public static boolean GROUP_BY_FOLDER = Utils.getPreferences().getBoolean(PreferenceConstantes.GROUP_BY_FOLDER,
-      false);
-  public static Comparator<Object> MATCHINGFILE_COMPARATOR = new Comparator<Object>() {
-    @Override
-    public int compare(Object o1, Object o2) {
-      return ((MatchingFile) o1).getFilePath().compareTo(((MatchingFile) o2).getFilePath());
-    }
-  };
 
-  private static String root = "/\\ROOT/\\";
-  private static Object originalElement;
-  private static Job currentJob;
-  private static LinkedHashMap<Request, Response> history = loadHistory();
+  private static final int LIVE_SEARCH_DELAY = 300;
+  private static final int LIVE_SEARCH_MIN_LENGTH = 3;
+  private static final int REFRESH_DELAY = 200;
+  private static final int AUTO_EXPAND_MAX_LINES = 200;
+  private static final int[] CONTEXT_LINES_CHOICES = { 0, 1, 2, 3, 5 };
 
-  private static ImageDescriptor alphabSortImage = createImageDescriptorFromURL(
-      "platform:/plugin/org.eclipse.jdt.ui/icons/full/elcl16/alphab_sort_co.png");
-  private static ImageDescriptor groupByFolderImage = createImageDescriptorFromURL(
-      "platform:/plugin/org.eclipse.search/icons/full/etool16/group_by_folder.png");
-  private static ImageDescriptor settingsImage = createImageDescriptorFromURL(
-      "platform:/plugin/org.eclipse.egit.ui/icons/obj16/settings.png");
+  private static final History history = History.load();
 
-  private static Comparator<Object> searchProjectComparator = new Comparator<Object>() {
-    @Override
-    public int compare(Object o1, Object o2) {
-      return ((SearchedProject) o1).getProject().getName().compareTo(((SearchedProject) o2).getProject().getName());
-    }
-  };
-  private static Comparator<Object> folderComparator = new Comparator<Object>() {
-    @Override
-    public int compare(Object o1, Object o2) {
-      return ((Folder) o1).getName().compareTo(((Folder) o2).getName());
-    }
-  };
+  private final ResultContentProvider contentProvider = new ResultContentProvider();
+  private ResourceManager resourceManager;
+  private Image image;
+  private Image runningImage;
+  private Image doneImage;
 
-  private static AbstractTextSearchResult abstractTextSearchResult = new AbstractTextSearchResult() {
-
-    @Override
-    public String getLabel() {
-      return null;
-    }
-
-    @Override
-    public String getTooltip() {
-      return null;
-    }
-
-    @Override
-    public ImageDescriptor getImageDescriptor() {
-      return null;
-    }
-
-    @Override
-    public ISearchQuery getQuery() {
-      return null;
-    }
-
-    @Override
-    public IEditorMatchAdapter getEditorMatchAdapter() {
-      return null;
-    }
-
-    @Override
-    public IFileMatchAdapter getFileMatchAdapter() {
-      return null;
-    }
-
-    public int getMatchCount(Object element) {
-      element = originalElement;
-      if (element instanceof SearchedProject) {
-        return ((SearchedProject) element).getMatchingFiles().size();
-      } else if (element instanceof MatchingFile) {
-        return ((MatchingFile) element).getMatchingLines().size();
-      }
-      return 0;
-    }
-  };
-
-  private TreeViewer treeViewer;
   private Text textField;
-  private Button caseSensitiveButton;
-  private Button regularExpressionButton;
+  private ToolItem caseSensitiveItem;
+  private ToolItem wholeWordItem;
+  private ToolItem regularExpressionItem;
+  private ToolItem replaceItem;
+  private Text replaceField;
+  private Button replaceButton;
+  private Text globField;
+  private Combo scopeCombo;
+  private Link statusLink;
+  private SashForm sashForm;
+  private TreeViewer treeViewer;
+  private PreviewPane previewPane;
 
-  private EditorOpener editorOpener = new EditorOpener();
-
-  private AbstractTextSearchViewPage abstractTextSearchViewPage = new AbstractTextSearchViewPage() {
-
-    @Override
-    protected void elementsChanged(Object[] objects) {
-    }
-
-    @Override
-    protected void configureTreeViewer(TreeViewer viewer) {
-    }
-
-    @Override
-    protected void configureTableViewer(TableViewer viewer) {
-    }
-
-    @Override
-    protected void clear() {
-    }
-
-    @Override
-    public void gotoNextMatch() {
-      go_to(true);
-    }
-
-    @Override
-    public void gotoPreviousMatch() {
-      go_to(false);
-    }
-
-    private void go_to(boolean next) {
-      SafeRunner.run(() -> {
-        new TreeViewerNavigator(abstractTextSearchViewPage, treeViewer).navigateNext(next);
-        Object firstElement = ((StructuredSelection) treeViewer.getSelection()).getFirstElement();
-        if (firstElement instanceof MatchingLine) {
-          showMatchingLine((MatchingLine) firstElement);
-        }
-      });
-    }
-
-    @Override
-    public void internalRemoveSelected() {
-      ((StructuredSelection) treeViewer.getSelection()).forEach(this::internalRemoveSelected);
-    }
-
-    private void internalRemoveSelected(Object element) {
-      if (element instanceof SearchedProject) {
-        SearchedProject searchProject = (SearchedProject) element;
-        searchProject.getResponse().getSearchedProjects().remove(searchProject);
-        treeViewer.refresh();
-      } else if (element instanceof MatchingFile) {
-        MatchingFile matchingFile = (MatchingFile) element;
-        matchingFile.getSearchProject().getMatchingFiles().remove(matchingFile);
-        if (matchingFile.getSearchProject().getMatchingFiles().isEmpty()) {
-          internalRemoveSelected(matchingFile.getSearchProject());
-        } else {
-          treeViewer.refresh(matchingFile.getSearchProject());
-        }
-      } else if (element instanceof MatchingLine) {
-        MatchingLine matchingLine = (MatchingLine) element;
-        matchingLine.getMatchingFile().getMatchingLines().remove(matchingLine);
-        if (matchingLine.getMatchingFile().getMatchingLines().isEmpty()) {
-          internalRemoveSelected(matchingLine.getMatchingFile());
-        } else {
-          treeViewer.refresh(matchingLine.getMatchingFile());
-        }
-      } else if (element instanceof SeeAll) {
-        SeeAll seeAll = (SeeAll) element;
-        Arrays.asList(seeAll.toArray()).forEach(object -> seeAll.getUnderlyingObjects().remove(object));
-        treeViewer.refresh(seeAll);
-      } else if (element instanceof Folder) {
-        Folder folder = (Folder) element;
-        File _folder = new File(folder.getParentFile(), folder.getName());
-        SearchedProject searchProject = folder.getSearchProject();
-        searchProject.getMatchingFiles().removeAll(searchProject.getMatchingFiles().stream()
-                                                                .filter(matchingFile -> matchingFile.getFilePath().startsWith(_folder.getAbsolutePath())).toList());
-        if (searchProject.getMatchingFiles().isEmpty()) {
-          internalRemoveSelected(searchProject);
-        } else {
-          treeViewer.refresh(searchProject);
-        }
-      }
-    }
-
-    @Override
-    public int getDisplayedMatchCount(Object element) {
-      return element instanceof MatchingLine ? 1 : 0;
-    }
-
-    @Override
-    public AbstractTextSearchResult getInput() {
-      return abstractTextSearchResult;
-    }
-
-  };
-
-  private SearchAgainAction searchAgainAction;
-  private CancelSearchAction cancelSearchAction;
-  private ExpandAllAction expandAllAction;
-  private CollapseAllAction collapseAllAction;
-  private RemoveSelectedMatchesAction removeSelectedMatchesAction;
+  private Action searchAgainAction;
+  private Action cancelSearchAction;
+  private Action removeSelectedMatchesAction;
 
   private Request currentRequest;
+  private Job currentJob;
+  /**
+   * The search started while typing: the next one replaces it in the history.
+   */
+  private Request liveRequest;
+  private boolean updatingFields;
+  private final AtomicBoolean dirty = new AtomicBoolean();
+  private List<IResource> selectedResources = List.of();
+
+  private final Runnable liveSearch = () -> {
+    if (!textField.isDisposed() && Utils.getBoolean(LIVE_SEARCH)) {
+      searchFromFields(true);
+    }
+  };
+
+  private final Runnable refresher = new Runnable() {
+    @Override
+    public void run() {
+      if (treeViewer.getControl().isDisposed() || currentJob == null) {
+        return;
+      }
+      if (dirty.getAndSet(false)) {
+        refreshResults();
+      }
+      Display.getCurrent().timerExec(REFRESH_DELAY, this);
+    }
+  };
+
+  private final ISelectionListener selectionListener = (part, selection) -> {
+    if (part != this && selection instanceof IStructuredSelection structuredSelection) {
+      List<IResource> resources = new ArrayList<>();
+      for (Object element : structuredSelection.toList()) {
+        IResource resource = Adapters.adapt(element, IResource.class);
+        if (resource != null) {
+          resources.add(resource);
+        }
+      }
+      if (!resources.isEmpty()) {
+        selectedResources = resources;
+      }
+    }
+  };
 
   @Override
   public void createPartControl(Composite parent) {
-    initToolbar();
+    resourceManager = new LocalResourceManager(JFaceResources.getResources(), parent);
+    image = resourceManager.createImage(createImageDescriptor("icons/eripgrep.png"));
+    runningImage = resourceManager.createImage(createImageDescriptor("icons/eripgrep-running.png"));
+    doneImage = resourceManager.createImage(createImageDescriptor("icons/eripgrep-done.png"));
+    contentProvider.setAlphabeticalSort(Utils.getBoolean(ALPHABETICAL_SORT));
+    contentProvider.setGroupByFolder(Utils.getBoolean(GROUP_BY_FOLDER));
     GridLayout gridLayout = new GridLayout();
-    gridLayout.numColumns = 1;
     gridLayout.horizontalSpacing = 0;
     gridLayout.verticalSpacing = 0;
     gridLayout.marginHeight = 0;
+    gridLayout.marginWidth = 0;
     parent.setLayout(gridLayout);
-    createSearchField(parent);
-    createTreeViewer(parent);
-  }
-
-  private void initToolbar() {
-    getViewSite().getActionBars().getToolBarManager().add(new ShowNextResultAction(abstractTextSearchViewPage));
-    getViewSite().getActionBars().getToolBarManager().add(new ShowPreviousResultAction(abstractTextSearchViewPage));
-    getViewSite().getActionBars().getToolBarManager().add(new Separator());
-    removeSelectedMatchesAction = new RemoveSelectedMatchesAction(abstractTextSearchViewPage);
-    getViewSite().getActionBars().getToolBarManager().add(removeSelectedMatchesAction);
-    getViewSite().getActionBars().getToolBarManager().add(new Separator());
-    expandAllAction = new ExpandAllAction();
-    getViewSite().getActionBars().getToolBarManager().add(expandAllAction);
-    collapseAllAction = new CollapseAllAction();
-    getViewSite().getActionBars().getToolBarManager().add(collapseAllAction);
-    getViewSite().getActionBars().getToolBarManager().add(new Separator());
-    searchAgainAction = new SearchAgainAction() {
-      @Override
-      public void run() {
-        searchFor(currentRequest);
-      }
-    };
-    searchAgainAction.setEnabled(currentJob != null);
-    getViewSite().getActionBars().getToolBarManager().add(searchAgainAction);
-    cancelSearchAction = new CancelSearchAction(null) {
-      @Override
-      public void run() {
-        if (currentJob != null) {
-          currentJob.cancel();
-        }
-      }
-    };
-    cancelSearchAction.setEnabled(currentJob != null && currentJob.getThread() != null);
-    getViewSite().getActionBars().getToolBarManager().add(cancelSearchAction);
-    getViewSite().getActionBars().getToolBarManager().add(new SearchHistoryDropDownAction(this));
-    getViewSite().getActionBars().getToolBarManager().add(new Separator());
-    Action sortAlphabeticallyAction = new Action("Sort alphabetically", IAction.AS_CHECK_BOX) {
-      @Override
-      public void run() {
-        ALPHABETICAL_SORT = !ALPHABETICAL_SORT;
-        Utils.getPreferences().putBoolean(PreferenceConstantes.ALPHABETICAL_SORT, ALPHABETICAL_SORT);
-        treeViewer.refresh();
-      }
-    };
-    sortAlphabeticallyAction.setImageDescriptor(alphabSortImage);
-    sortAlphabeticallyAction.setChecked(ALPHABETICAL_SORT);
-    getViewSite().getActionBars().getToolBarManager().add(sortAlphabeticallyAction);
-    Action groupByFolderAction = new Action("Group by folder", IAction.AS_CHECK_BOX) {
-      @Override
-      public void run() {
-        Folder.clear();
-        GROUP_BY_FOLDER = !GROUP_BY_FOLDER;
-        Utils.getPreferences().putBoolean(PreferenceConstantes.GROUP_BY_FOLDER, GROUP_BY_FOLDER);
-        treeViewer.refresh();
-      }
-    };
-    groupByFolderAction.setImageDescriptor(groupByFolderImage);
-    groupByFolderAction.setChecked(GROUP_BY_FOLDER);
-    getViewSite().getActionBars().getToolBarManager().add(groupByFolderAction);
-    getViewSite().getActionBars().getToolBarManager().add(new Separator());
-    Action openSettingsAction = new Action("Settings", settingsImage) {
-      @Override
-      public void run() {
+    createSearchFields(parent);
+    statusLink = new Link(parent, SWT.NONE);
+    GridData statusData = new GridData(SWT.FILL, SWT.CENTER, true, false);
+    statusData.horizontalIndent = 6;
+    statusData.verticalIndent = 2;
+    statusLink.setLayoutData(statusData);
+    statusLink.addSelectionListener(SelectionListener.widgetSelectedAdapter(e -> {
+      if ("get".equals(e.text)) {
+        Program.launch("https://github.com/BurntSushi/ripgrep#installation");
+      } else {
         UiUtils.openPreferencePage();
+        searchAgain();
       }
-    };
-    getViewSite().getActionBars().getToolBarManager().add(openSettingsAction);
+    }));
+    sashForm = new SashForm(parent, SWT.VERTICAL);
+    sashForm.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+    createTreeViewer(sashForm);
+    previewPane = new PreviewPane(sashForm);
+    sashForm.setWeights(60, 40);
+    // the preview is beside the results in a wide view, below them in a high one
+    sashForm.addListener(SWT.Resize, e -> {
+      Point size = sashForm.getSize();
+      int orientation = size.x > 2 * size.y ? SWT.HORIZONTAL : SWT.VERTICAL;
+      if (sashForm.getOrientation() != orientation) {
+        sashForm.setOrientation(orientation);
+      }
+    });
+    showPreview(Utils.getBoolean(SHOW_PREVIEW));
+    initToolbar();
+    initMenu();
+    getSite().getPage().addSelectionListener(selectionListener);
+    selectionListener.selectionChanged(null, getSite().getPage().getSelection());
+    updateStatus();
   }
 
-  private void createSearchField(Composite parent) {
-    GridLayout gridLayout;
+  private void createSearchFields(Composite parent) {
     Composite composite = new Composite(parent, SWT.NONE);
     composite.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, false));
-    gridLayout = new GridLayout();
-    gridLayout.numColumns = 3;
+    GridLayout gridLayout = new GridLayout(2, false);
+    gridLayout.verticalSpacing = 3;
+    gridLayout.marginHeight = 4;
     composite.setLayout(gridLayout);
-    textField = new Text(composite, SWT.BORDER);
-    textField.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
-    caseSensitiveButton = new Button(composite, SWT.CHECK);
-    caseSensitiveButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
-    caseSensitiveButton.setText("Case sensitive");
-    caseSensitiveButton.setSelection(Utils.getPreferences().getBoolean(CASE_SENSITIVE, true));
-    caseSensitiveButton.addSelectionListener(new SelectionAdapter() {
-      @Override
-      public void widgetSelected(SelectionEvent e) {
-        Utils.getPreferences().putBoolean(CASE_SENSITIVE, caseSensitiveButton.getSelection());
-      }
-    });
-    regularExpressionButton = new Button(composite, SWT.CHECK);
-    regularExpressionButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
-    regularExpressionButton.setText("Regular expression");
-    regularExpressionButton.setSelection(InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).getBoolean(REGULAR_EXPRESSION, false));
-    regularExpressionButton.addSelectionListener(new SelectionAdapter() {
-      @Override
-      public void widgetSelected(SelectionEvent e) {
-        Utils.getPreferences().putBoolean(REGULAR_EXPRESSION, regularExpressionButton.getSelection());
-      }
-    });
+
+    textField = new Text(composite, SWT.SEARCH | SWT.ICON_SEARCH | SWT.ICON_CANCEL);
+    textField.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+    textField.setMessage("Search");
+    textField.addModifyListener(e -> scheduleLiveSearch());
+    textField.addSelectionListener(SelectionListener.widgetDefaultSelectedAdapter(e -> searchFromFields(false)));
     textField.addKeyListener(new KeyAdapter() {
       @Override
       public void keyPressed(KeyEvent e) {
-        if (e.character == SWT.CR) {
-          searchFor(textField.getText(), caseSensitiveButton.getSelection(), regularExpressionButton.getSelection());
+        if (e.keyCode == SWT.ARROW_DOWN) {
+          treeViewer.getControl().setFocus();
         }
       }
     });
+    ToolBar toolBar = new ToolBar(composite, SWT.FLAT);
+    toolBar.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+    caseSensitiveItem = createOptionItem(toolBar, "Aa", "Case sensitive", CASE_SENSITIVE);
+    wholeWordItem = createOptionItem(toolBar, "W", "Whole word", WHOLE_WORD);
+    regularExpressionItem = createOptionItem(toolBar, ".*", "Regular expression", REGULAR_EXPRESSION);
+    new ToolItem(toolBar, SWT.SEPARATOR);
+    replaceItem = new ToolItem(toolBar, SWT.CHECK);
+    replaceItem.setText("⇄");
+    replaceItem.setToolTipText("Replace");
+    replaceItem.setSelection(Utils.getBoolean(SHOW_REPLACE));
+    replaceItem.addSelectionListener(SelectionListener.widgetSelectedAdapter(e -> {
+      Utils.getPreferences().putBoolean(SHOW_REPLACE, replaceItem.getSelection());
+      Utils.savePreferences();
+      showReplace(replaceItem.getSelection());
+      if (replaceItem.getSelection()) {
+        replaceField.setFocus();
+      }
+    }));
+
+    replaceField = new Text(composite, SWT.BORDER);
+    replaceField.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+    replaceField.setMessage("Replace");
+    replaceField.addSelectionListener(SelectionListener.widgetDefaultSelectedAdapter(e -> replace(false)));
+    replaceButton = new Button(composite, SWT.PUSH);
+    replaceButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+    replaceButton.setText("Replace All...");
+    replaceButton.setToolTipText("Preview and replace all the matches");
+    replaceButton.addSelectionListener(SelectionListener.widgetSelectedAdapter(e -> replace(false)));
+    showReplace(replaceItem.getSelection());
+
+    globField = new Text(composite, SWT.BORDER);
+    globField.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+    globField.setMessage("Files to include or exclude, e.g. *.java, !test/");
+    globField.setToolTipText("Globs separated by commas, a leading ! excludes");
+    globField.setText(Utils.getString(FILE_GLOBS));
+    globField.addModifyListener(e -> {
+      if (!updatingFields) {
+        Utils.getPreferences().put(FILE_GLOBS, globField.getText());
+        scheduleLiveSearch();
+      }
+    });
+    globField.addSelectionListener(SelectionListener.widgetDefaultSelectedAdapter(e -> searchFromFields(false)));
+    scopeCombo = new Combo(composite, SWT.READ_ONLY);
+    scopeCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+    for (Scope scope : Scope.values()) {
+      scopeCombo.add(scope.getLabel());
+    }
+    scopeCombo.setToolTipText("Where to search");
+    scopeCombo.select(getScope(Utils.getString(SCOPE)).ordinal());
+    scopeCombo.addSelectionListener(SelectionListener.widgetSelectedAdapter(e -> {
+      if (!updatingFields) {
+        Utils.getPreferences().put(SCOPE, Scope.values()[scopeCombo.getSelectionIndex()].name());
+        Utils.savePreferences();
+        scheduleLiveSearch();
+      }
+    }));
+  }
+
+  private ToolItem createOptionItem(ToolBar toolBar, String text, String toolTip, String preference) {
+    ToolItem item = new ToolItem(toolBar, SWT.CHECK);
+    item.setText(text);
+    item.setToolTipText(toolTip);
+    item.setSelection(Utils.getBoolean(preference));
+    item.addSelectionListener(SelectionListener.widgetSelectedAdapter(e -> {
+      Utils.getPreferences().putBoolean(preference, item.getSelection());
+      Utils.savePreferences();
+      scheduleLiveSearch();
+    }));
+    return item;
+  }
+
+  private static Scope getScope(String name) {
+    try {
+      return Scope.valueOf(name);
+    } catch (IllegalArgumentException e) {
+      return Scope.WORKSPACE;
+    }
+  }
+
+  private void showReplace(boolean show) {
+    for (Control control : new Control[] { replaceField, replaceButton }) {
+      ((GridData) control.getLayoutData()).exclude = !show;
+      control.setVisible(show);
+    }
+    replaceField.getParent().getParent().layout(true, true);
+  }
+
+  private void showPreview(boolean show) {
+    sashForm.setMaximizedControl(show ? null : treeViewer.getControl());
   }
 
   private void createTreeViewer(Composite parent) {
     treeViewer = new TreeViewer(parent, SWT.MULTI | SWT.H_SCROLL | SWT.V_SCROLL);
-    treeViewer.getControl().setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
-    expandAllAction.setViewer(treeViewer);
-    collapseAllAction.setViewer(treeViewer);
-    treeViewer.setContentProvider(getContentProvider());
-    treeViewer.setLabelProvider(getLabelProvider());
-    treeViewer.addOpenListener(new IOpenListener() {
-
-      @Override
-      public void open(OpenEvent event) {
-        SafeRunner.run(() -> {
-          Object firstElement = ((IStructuredSelection) event.getSelection()).getFirstElement();
-          if (firstElement instanceof MatchingFile) {
-            firstElement = ((MatchingFile) firstElement).getMatchingLines().get(0);
-          }
-          if (firstElement instanceof MatchingLine) {
-            MatchingLine matchingLine = (MatchingLine) firstElement;
-            showMatchingLine(matchingLine);
-          }
-        });
+    treeViewer.setUseHashlookup(true);
+    treeViewer.setContentProvider(contentProvider);
+    treeViewer.setLabelProvider(new DelegatingStyledCellLabelProvider(new ResultLabelProvider(contentProvider)));
+    treeViewer.addOpenListener(event -> open(((IStructuredSelection) event.getSelection()).getFirstElement()));
+    treeViewer.addSelectionChangedListener(event -> {
+      MatchingLine matchingLine = getMatchingLine(event.getStructuredSelection().getFirstElement());
+      if (matchingLine != null && sashForm.getMaximizedControl() == null) {
+        previewPane.show(matchingLine);
       }
     });
     treeViewer.getControl().addKeyListener(new KeyAdapter() {
       @Override
       public void keyPressed(KeyEvent e) {
-        if (e.character == SWT.DEL)
+        if (e.character == SWT.DEL) {
           removeSelectedMatchesAction.run();
-        else if (e.keyCode == SWT.ARROW_DOWN) {
+        } else if (e.stateMask == SWT.MOD1 && e.keyCode == 'c') {
+          copySelection();
+        } else if (e.keyCode == SWT.ARROW_DOWN) {
           e.doit = false;
-          abstractTextSearchViewPage.gotoNextMatch();
+          navigate(true);
         } else if (e.keyCode == SWT.ARROW_UP) {
           e.doit = false;
-          abstractTextSearchViewPage.gotoPreviousMatch();
+          navigate(false);
         }
       }
     });
@@ -460,443 +377,786 @@ public class ERipGrepViewPart extends ViewPart {
     treeViewer.getControl().setMenu(menu);
     menuMgr.setRemoveAllWhenShown(true);
     menuMgr.addMenuListener(mgr -> {
-      mgr.add(new Action("Copy") {
+      IStructuredSelection selection = treeViewer.getStructuredSelection();
+      mgr.add(new Action("Open") {
         @Override
-        public void runWithEvent(Event event) {
-          IStructuredSelection selection = treeViewer.getStructuredSelection();
-          StringBuilder sb = new StringBuilder();
-          for (Object element : selection.toArray()) {
-            if (element instanceof MatchingLine matchingLine) {
-              sb.append(matchingLine.getMatchingFile().getFilePath())
-                .append(":")
-                .append(matchingLine.getLineNumber())
-                .append(": ")
-                .append(matchingLine.getMatchingLine());
-            } else if (element instanceof MatchingFile matchingFile) {
-              sb.append(matchingFile.getFilePath());
-            } else if (element instanceof Folder folder) {
-              sb.append(folder.getName());
-            } else if (element instanceof SearchedProject searchedProject) {
-              sb.append(searchedProject.getProject().getName());
-            } else if (element instanceof Error error) {
-              sb.append(error.getError());
-            } else {
-              sb.append(String.valueOf(element));
-            }
-            sb.append(System.lineSeparator());
-          }
-          Clipboard clipboard = new Clipboard(Display.getDefault());
-          try {
-            clipboard.setContents(
-                new Object[] { sb.toString() },
-                new Transfer[] { TextTransfer.getInstance() });
-          } finally {
-            clipboard.dispose();
-          }
+        public void run() {
+          open(selection.getFirstElement());
         }
       });
+      mgr.add(new Action("Copy") {
+        @Override
+        public void run() {
+          copySelection();
+        }
+      });
+      mgr.add(removeSelectedMatchesAction);
+      mgr.add(new Separator());
+      Action replaceSelectedAction = new Action("Replace Selected...") {
+        @Override
+        public void run() {
+          replace(true);
+        }
+      };
+      replaceSelectedAction.setEnabled(currentRequest != null && !selection.isEmpty());
+      mgr.add(replaceSelectedAction);
+      mgr.add(new Separator(IWorkbenchActionConstants.MB_ADDITIONS));
     });
     getSite().registerContextMenu(menuMgr, treeViewer);
+    getSite().setSelectionProvider(treeViewer);
   }
 
-  private ITreeContentProvider getContentProvider() {
-    return new ITreeContentProvider() {
+  private void initToolbar() {
+    IToolBarManager toolBarManager = getViewSite().getActionBars().getToolBarManager();
+    toolBarManager.add(createAction("Show Next Match", "elcl16/search_next.png", () -> navigate(true)));
+    toolBarManager.add(createAction("Show Previous Match", "elcl16/search_prev.png", () -> navigate(false)));
+    toolBarManager.add(new Separator());
+    removeSelectedMatchesAction = createAction("Remove Selected Matches", "elcl16/search_rem.png", this::removeSelected);
+    toolBarManager.add(removeSelectedMatchesAction);
+    toolBarManager.add(new Separator());
+    toolBarManager.add(createAction("Expand All", "elcl16/expandall.png", () -> treeViewer.expandAll()));
+    toolBarManager.add(createAction("Collapse All", "elcl16/collapseall.png", () -> treeViewer.collapseAll()));
+    toolBarManager.add(new Separator());
+    searchAgainAction = createAction("Run the Search Again", "elcl16/refresh.png", this::searchAgain);
+    searchAgainAction.setEnabled(false);
+    toolBarManager.add(searchAgainAction);
+    cancelSearchAction = createAction("Cancel the Search", "elcl16/stop.png", this::cancelSearch);
+    cancelSearchAction.setEnabled(false);
+    toolBarManager.add(cancelSearchAction);
+    toolBarManager.add(new HistoryAction());
+    toolBarManager.add(new Separator());
+    toolBarManager.add(createToggleAction("Sort alphabetically", "elcl16/search_sortmatch.png", ALPHABETICAL_SORT, () -> {
+      contentProvider.setAlphabeticalSort(Utils.getBoolean(ALPHABETICAL_SORT));
+      treeViewer.refresh();
+    }));
+    toolBarManager.add(createToggleAction("Group by folder", "etool16/group_by_folder.png", GROUP_BY_FOLDER, () -> {
+      contentProvider.setGroupByFolder(Utils.getBoolean(GROUP_BY_FOLDER));
+      treeViewer.refresh();
+      autoExpand();
+    }));
+  }
 
-      @Override
-      public boolean hasChildren(Object element) {
-        if (element instanceof Response) {
-          return !((Response) element).getSearchedProjects().isEmpty();
-        } else if (element instanceof SearchedProject) {
-          return !((SearchedProject) element).getMatchingFiles().isEmpty();
-        } else if (element instanceof MatchingFile) {
-          return !((MatchingFile) element).getMatchingLines().isEmpty();
-        } else if (element instanceof Folder) {
-          return true;
-        }
-        return getChildren(element) != null && getChildren(element).length > 0;
-      }
-
-      @Override
-      public Object getParent(Object element) {
-        if (element instanceof SearchedProject) {
-          return ((SearchedProject) element).getResponse();
-        } else if (element instanceof Folder) {
-          Folder folder = ((Folder) element);
-          return folder.getFolder() != null ? folder.getFolder() : folder.getSearchProject();
-        }
-        return null;
-      }
-
-      @Override
-      public Object[] getElements(Object inputElement) {
-        Collection<SearchedProject> searchProjects = ((Response) inputElement).getSearchedProjects();
-        if (ALPHABETICAL_SORT) {
-          List<SearchedProject> list = new ArrayList<>(searchProjects);
-          list.sort(searchProjectComparator);
-          searchProjects = list;
-        }
-        return searchProjects.toArray();
-      }
-
-      @Override
-      public Object[] getChildren(Object parentElement) {
-        if (parentElement instanceof SearchedProject) {
-          SearchedProject searchProject = (SearchedProject) parentElement;
-          if (searchProject.getError() != null)
-            return new Object[] { searchProject.getError() };
-          if (GROUP_BY_FOLDER) {
-            List<Object> children = new ArrayList<>();
-            File _folder = searchProject.getProject().getLocation().toFile();
-            Map<String, List<MatchingFile>> firstLevelFolders = getFirstLevelFolders(_folder,
-                searchProject.getMatchingFiles());
-            for (Entry<String, List<MatchingFile>> entry : firstLevelFolders.entrySet()) {
-              if (root.equals(entry.getKey()))
-                continue;
-              Folder folder = Folder.getOrCreate(searchProject, _folder, entry.getKey(),
-                  (IFolder) (searchProject.getProject().isOpen() ? searchProject.getProject().findMember(entry.getKey())
-                      : null));
-              folder.setMatchingFiles(entry.getValue());
-              children.add(folder);
-            }
-            children.sort(folderComparator);
-            if (firstLevelFolders.get(root) != null) {
-              List<MatchingFile> matchingFiles = firstLevelFolders.get(root);
-              children.addAll(Arrays
-                                    .asList(getMaxChildren(searchProject, matchingFiles, ALPHABETICAL_SORT ? MATCHINGFILE_COMPARATOR : null)));
-            }
-            return children.toArray();
+  private void initMenu() {
+    IMenuManager menuManager = getViewSite().getActionBars().getMenuManager();
+    menuManager.add(createToggleAction("Search as You Type", null, LIVE_SEARCH, () -> {
+    }));
+    menuManager.add(createToggleAction("Show Preview", null, SHOW_PREVIEW, () -> {
+      showPreview(Utils.getBoolean(SHOW_PREVIEW));
+      previewPane.show(getMatchingLine(treeViewer.getStructuredSelection().getFirstElement()));
+    }));
+    menuManager.add(new Separator());
+    menuManager.add(createToggleAction("Search Hidden Files", null, SEARCH_HIDDEN, this::searchAgain));
+    menuManager.add(createToggleAction("Use .gitignore and Other Ignore Files", null, USE_IGNORE_FILES, this::searchAgain));
+    MenuManager contextMenu = new MenuManager("Lines of Context");
+    for (int lines : CONTEXT_LINES_CHOICES) {
+      Action action = new Action(String.valueOf(lines), IAction.AS_RADIO_BUTTON) {
+        @Override
+        public void run() {
+          if (isChecked()) {
+            Utils.getPreferences().putInt(CONTEXT_LINES, lines);
+            Utils.savePreferences();
+            searchAgain();
           }
-          return getMaxChildren(searchProject, searchProject.getMatchingFiles(),
-              ALPHABETICAL_SORT ? MATCHINGFILE_COMPARATOR : null);
-        } else if (parentElement instanceof MatchingFile) {
-          MatchingFile matchingFile = (MatchingFile) parentElement;
-          return getMaxChildren(matchingFile, matchingFile.getMatchingLines(), null);
-        } else if (parentElement instanceof SeeAll) {
-          return ((SeeAll) parentElement).toArray();
-        } else if (parentElement instanceof Folder) {
-          Folder folder = (Folder) parentElement;
-          File _folder = new File(folder.getParentFile(), folder.getName());
-          List<Object> children = new ArrayList<>();
-          Map<String, List<MatchingFile>> firstLevelFolders = getFirstLevelFolders(_folder, folder.getMatchingFiles());
-          for (Entry<String, List<MatchingFile>> entry : firstLevelFolders.entrySet()) {
-            if (root.equals(entry.getKey()))
-              continue;
-            Folder subFolder = Folder.getOrCreate(folder.getSearchProject(), _folder, entry.getKey(),
-                (IFolder) (folder.getFolder() != null ? folder.getFolder().findMember(entry.getKey()) : null));
-            subFolder.setMatchingFiles(entry.getValue());
-            children.add(subFolder);
-          }
-          children.sort(folderComparator);
-          if (firstLevelFolders.get(root) != null) {
-            List<MatchingFile> matchingFiles = firstLevelFolders.get(root);
-            children.addAll(
-                Arrays.asList(getMaxChildren(folder, matchingFiles, ALPHABETICAL_SORT ? MATCHINGFILE_COMPARATOR : null)));
-          }
-          return children.toArray();
         }
-        return null;
+      };
+      action.setChecked(Utils.getInt(CONTEXT_LINES) == lines);
+      contextMenu.add(action);
+    }
+    menuManager.add(contextMenu);
+    menuManager.add(new Separator());
+    menuManager.add(new Action("Preferences...") {
+      @Override
+      public void run() {
+        UiUtils.openPreferencePage();
       }
+    });
+  }
 
-      private Map<String, List<MatchingFile>> getFirstLevelFolders(File rootFolder, List<MatchingFile> matchingFiles) {
-        Map<String, List<MatchingFile>> firstLevelForlders = new HashMap<>();
-        for (MatchingFile matchingFile : matchingFiles) {
-          File folder = new File(matchingFile.getFilePath());
-          while (!folder.getParentFile().equals(rootFolder)) {
-            folder = folder.getParentFile();
-          }
-          String folderName = folder.isFile() ? root : folder.getName();
-
-          firstLevelForlders.computeIfAbsent(folderName, s -> new ArrayList<>()).add(matchingFile);
-        }
-        return firstLevelForlders;
-      }
-
-      private Object[] getMaxChildren(Object element, List<?> collection, Comparator comparator) {
-        List<Object> objects = new ArrayList<>();
-        for (int i = 0; i < collection.size() && i < SeeAll.MAX_NUMBER; i++) {
-          objects.add(collection.get(i));
-        }
-        if (comparator != null) {
-          objects.sort(comparator);
-        }
-        if (collection.size() > SeeAll.MAX_NUMBER) {
-          objects.add(SeeAll.getOrCreate(element, collection));
-        }
-        return objects.toArray();
+  private static Action createAction(String text, String searchIcon, Runnable runnable) {
+    Action action = new Action(text) {
+      @Override
+      public void run() {
+        runnable.run();
       }
     };
+    action.setToolTipText(text);
+    action.setImageDescriptor(getSearchImage(searchIcon));
+    return action;
   }
 
-  private DecoratingFileSearchLabelProvider getLabelProvider() {
-    DecoratingFileSearchLabelProvider decoratingFileSearchLabelProvider = new DecoratingFileSearchLabelProvider(new ERipGrepLabelProvider()) {
-
+  /**
+   * An action which switches a boolean preference.
+   */
+  private static Action createToggleAction(String text, String searchIcon, String preference, Runnable runnable) {
+    Action action = new Action(text, IAction.AS_CHECK_BOX) {
       @Override
-      protected StyledString getStyledText(Object element) {
-        originalElement = element;
-        if (element instanceof SeeAll) {
-          return new StyledString("See all " + ((SeeAll) element).toArray().length + " remaining elements");
-        } else if (element instanceof SearchedProject) {
-          element = ((SearchedProject) element).getProject();
-        } else if (element instanceof MatchingFile && ((MatchingFile) element).getMatchingResource() != null) {
-          element = ((MatchingFile) element).getMatchingResource();
-        } else if (element instanceof Folder && ((Folder) element).getFolder() != null) {
-          element = ((Folder) element).getFolder();
-        }
-        return super.getStyledText(element);
-      }
-
-      @Override
-      public Image getImage(Object element) {
-        if (element instanceof SearchedProject) {
-          element = ((SearchedProject) element).getProject();
-        } else if (element instanceof MatchingFile && ((MatchingFile) element).getMatchingResource() != null) {
-          element = ((MatchingFile) element).getMatchingResource();
-        } else if (element instanceof Folder && ((Folder) element).getFolder() != null) {
-          element = ((Folder) element).getFolder();
-        }
-        return super.getImage(element);
+      public void run() {
+        Utils.getPreferences().putBoolean(preference, isChecked());
+        Utils.savePreferences();
+        runnable.run();
       }
     };
-    decoratingFileSearchLabelProvider.addListener(event -> treeViewer.refresh());
-    return decoratingFileSearchLabelProvider;
+    action.setToolTipText(text);
+    action.setChecked(Utils.getBoolean(preference));
+    if (searchIcon != null) {
+      action.setImageDescriptor(getSearchImage(searchIcon));
+    }
+    return action;
   }
 
+  private static ImageDescriptor getSearchImage(String icon) {
+    return createImageDescriptorFromURL("platform:/plugin/org.eclipse.search/icons/full/" + icon);
+  }
+
+  private void scheduleLiveSearch() {
+    if (!updatingFields && Utils.getBoolean(LIVE_SEARCH)) {
+      textField.getDisplay().timerExec(LIVE_SEARCH_DELAY, liveSearch);
+    }
+  }
+
+  /**
+   * @param live whether the search is started by the typing of the user rather than by its request
+   */
+  private void searchFromFields(boolean live) {
+    String text = textField.getText();
+    if (text.isEmpty()) {
+      if (!live || treeViewer.getInput() != null) {
+        cancelSearch();
+        currentRequest = null;
+        searchAgainAction.setEnabled(false);
+        showResponse(null);
+      }
+      return;
+    }
+    Request request = createRequest(text);
+    if (live && (text.length() < LIVE_SEARCH_MIN_LENGTH || request.isSameSearch(currentRequest))) {
+      return;
+    }
+    searchFor(request, live);
+  }
+
+  private Request createRequest(String text) {
+    Request request = new Request();
+    request.setText(text);
+    request.setCaseSensitive(caseSensitiveItem.getSelection());
+    request.setWholeWord(wholeWordItem.getSelection());
+    request.setRegularExpression(regularExpressionItem.getSelection());
+    request.setFileGlobs(globField.getText());
+    Scope scope = Scope.values()[Math.max(0, scopeCombo.getSelectionIndex())];
+    request.setScope(scope, getScopePaths(scope));
+    setViewOptions(request);
+    return request;
+  }
+
+  private void setViewOptions(Request request) {
+    request.setSearchHidden(Utils.getBoolean(SEARCH_HIDDEN));
+    request.setUseIgnoreFiles(Utils.getBoolean(USE_IGNORE_FILES));
+    request.setContextLines(Utils.getInt(CONTEXT_LINES));
+  }
+
+  private List<String> getScopePaths(Scope scope) {
+    List<String> paths = new ArrayList<>();
+    if (scope == Scope.SELECTION) {
+      selectedResources.forEach(resource -> paths.add(resource.getFullPath().toString()));
+    } else if (scope == Scope.PROJECT) {
+      IEditorPart editor = getEditor();
+      IResource resource = editor != null ? Adapters.adapt(editor.getEditorInput(), IResource.class) : null;
+      if (resource != null) {
+        paths.add(resource.getProject().getFullPath().toString());
+      }
+    }
+    return paths;
+  }
+
+  /**
+   * The editor shown in the editor area. It is not the active one after the view opened it.
+   */
+  private IEditorPart getEditor() {
+    IWorkbenchPage page = getSite().getPage();
+    if (page.getActiveEditor() != null) {
+      return page.getActiveEditor();
+    }
+    for (IEditorReference reference : page.getEditorReferences()) {
+      IEditorPart editor = reference.getEditor(false);
+      if (editor != null && page.isPartVisible(editor)) {
+        return editor;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Searches a text in the workspace.
+   */
+  public void searchFor(String text, boolean caseSensitive, boolean regularExpression) {
+    Request request = new Request();
+    request.setText(text);
+    request.setCaseSensitive(caseSensitive);
+    request.setRegularExpression(regularExpression);
+    setViewOptions(request);
+    searchFor(request);
+  }
+
+  public void searchFor(Request request) {
+    searchFor(request, false);
+  }
+
+  private void searchFor(Request request, boolean live) {
+    cancelSearch();
+    if (liveRequest != null) {
+      history.remove(liveRequest);
+    }
+    liveRequest = live ? request : null;
+    request.setTime(System.currentTimeMillis());
+    Response response = new Response();
+    history.add(request, response);
+    history.save();
+    setCurrent(request, response);
+    if (request.getScope() != Scope.WORKSPACE && request.getScopePaths().isEmpty()) {
+      response.getErrors().add(new Error(request.getScope() == Scope.SELECTION
+          ? "No resource is selected: select projects, folders or files in another view."
+          : "The active editor does not edit a file of the workspace."));
+      response.setState(Response.State.DONE);
+      refreshResults();
+      return;
+    }
+    Job job = Job.create("Searching for \"" + request.getText() + "\" with RipGrep ...", monitor -> {
+      Engine.search(request, response, Utils.getSettings(), () -> dirty.set(true), monitor);
+      return monitor.isCanceled() ? Status.CANCEL_STATUS : Status.OK_STATUS;
+    });
+    job.addJobChangeListener(new JobChangeAdapter() {
+      @Override
+      public void done(IJobChangeEvent event) {
+        Display.getDefault().asyncExec(() -> searchDone(job));
+      }
+    });
+    // the searches started while typing do not flash in the progress of the workbench
+    job.setSystem(live);
+    currentJob = job;
+    cancelSearchAction.setEnabled(true);
+    setTitleImage(runningImage);
+    updateStatus();
+    job.schedule();
+    Display.getCurrent().timerExec(REFRESH_DELAY, refresher);
+  }
+
+  private void searchDone(Job job) {
+    if (job != currentJob || treeViewer.getControl().isDisposed()) {
+      return;
+    }
+    currentJob = null;
+    cancelSearchAction.setEnabled(false);
+    setTitleImage(getSite().getPage().getActivePart() == this ? image : doneImage);
+    refreshResults();
+  }
+
+  private void searchAgain() {
+    if (currentRequest != null) {
+      Request request = new Request(currentRequest);
+      setViewOptions(request);
+      searchFor(request);
+    }
+  }
+
+  private void cancelSearch() {
+    if (currentJob != null) {
+      currentJob.cancel();
+      currentJob = null;
+      cancelSearchAction.setEnabled(false);
+      setTitleImage(image);
+      updateStatus();
+    }
+  }
+
+  /**
+   * Whether a search is running.
+   */
+  public boolean isSearching() {
+    return currentJob != null;
+  }
+
+  /**
+   * Shows a search and its results.
+   */
   public void setCurrent(Request searchRequest, Response response) {
     this.currentRequest = searchRequest;
-    textField.setText(searchRequest.getText());
-    caseSensitiveButton.setSelection(searchRequest.isCaseSensitive());
-    regularExpressionButton.setSelection(searchRequest.isRegularExpression());
+    searchAgainAction.setEnabled(true);
+    updatingFields = true;
+    try {
+      if (!textField.getText().equals(searchRequest.getText())) {
+        textField.setText(searchRequest.getText());
+      }
+      caseSensitiveItem.setSelection(searchRequest.isCaseSensitive());
+      wholeWordItem.setSelection(searchRequest.isWholeWord());
+      regularExpressionItem.setSelection(searchRequest.isRegularExpression());
+      if (!globField.getText().equals(searchRequest.getFileGlobs())) {
+        globField.setText(searchRequest.getFileGlobs());
+      }
+      scopeCombo.select(searchRequest.getScope().ordinal());
+    } finally {
+      updatingFields = false;
+    }
+    showResponse(response);
+  }
+
+  private void showResponse(Response response) {
     treeViewer.setInput(response);
+    previewPane.show(null);
+    autoExpand();
+    updateStatus();
   }
 
   public Response getCurrent() {
     return (Response) treeViewer.getInput();
   }
 
-  private void showMatchingLine(MatchingLine matchingLine) throws PartInitException, IOException, CoreException {
-    IResource resource = matchingLine.getMatchingFile().getMatchingResource();
-    if (resource == null) {
-      IFileStore fileStore = EFS.getLocalFileSystem().getStore(new Path(matchingLine.getMatchingFile().getFilePath()));
-      IEditorPart editorPart = IDE.openInternalEditorOnFileStore(getSite().getPage(), fileStore);
-      if (editorPart instanceof ITextEditor) {
-        try (BufferedReader bufferedReader = ReaderFactory
-                                                          .createBufferedReader(new File(matchingLine.getMatchingFile().getFilePath()))) {
-          int lineNumber = 1;
-          int offset = 0;
-          String line = null;
-          while ((line = bufferedReader.readLine()) != null && lineNumber != matchingLine.getLineNumber()) {
-            lineNumber++;
-            offset += line.length() + 2;
-          }
-          if (line != null) {
-            Matcher matcher = matchingLine.getMatcher();
-            matcher.find();
-            ((ITextEditor) editorPart).selectAndReveal(offset + matcher.start(), matcher.group(1).length());
-          }
+  public TreeViewer getTreeViewer() {
+    return treeViewer;
+  }
+
+  private void refreshResults() {
+    treeViewer.refresh();
+    autoExpand();
+    updateStatus();
+  }
+
+  /**
+   * Expands the results when there are few of them.
+   */
+  private void autoExpand() {
+    Response response = getCurrent();
+    if (response == null) {
+      return;
+    }
+    int lines = 0;
+    for (SearchedProject searchedProject : response.getSearchedProjects()) {
+      for (MatchingFile matchingFile : List.copyOf(searchedProject.getMatchingFiles())) {
+        lines += matchingFile.getMatchingLines().size();
+        if (lines > AUTO_EXPAND_MAX_LINES) {
+          return;
         }
-      }
-    } else {
-      IFile file = (IFile) resource;
-      Charset charset = Charset.forName(file.getCharset());
-      try (ExtendedBufferedReader bufferedReader = new ExtendedBufferedReader(
-          new InputStreamReader(file.getContents(), charset))) {
-        while (bufferedReader.getCurrentLineNumber() + 1 != matchingLine.getLineNumber()
-            && bufferedReader.readLine() != null) {
-        }
-        Matcher matcher = matchingLine.getMatcher();
-        matcher.find();
-        editorOpener.openAndSelect(getSite().getPage(), file, (int) bufferedReader.getPosition() + matcher.start(),
-            matcher.group(1).length(), true);
       }
     }
-    setFocus();
+    treeViewer.expandAll();
+  }
+
+  private void updateStatus() {
+    statusLink.setText(getStatus());
+    statusLink.getParent().layout();
+  }
+
+  private String getStatus() {
+    Response response = treeViewer != null ? getCurrent() : null;
+    if (response == null) {
+      return "";
+    } else if (response.isRipGrepMissing()) {
+      return "RipGrep was not found: <a href=\"preferences\">set its location</a> or <a href=\"get\">install it</a>.";
+    }
+    NumberFormat format = NumberFormat.getIntegerInstance();
+    int matchCount = response.getMatchCount();
+    int fileCount = response.getFileCount();
+    StringBuilder status = new StringBuilder();
+    if (response.getState() == Response.State.RUNNING && currentJob != null) {
+      status.append("Searching... ");
+    }
+    if (matchCount == 0) {
+      status.append(response.getState() == Response.State.RUNNING ? "" : "No match");
+    } else {
+      status.append(format.format(matchCount)).append(matchCount == 1 ? " match in " : " matches in ")
+          .append(format.format(fileCount)).append(fileCount == 1 ? " file" : " files");
+    }
+    if (response.getState() != Response.State.RUNNING) {
+      if (response.getSearchedFiles() >= 0) {
+        status.append(" - ").append(format.format(response.getSearchedFiles())).append(" files searched");
+      }
+      status.append(" - ").append(format.format(response.getElapsedMillis())).append(" ms");
+      if (response.isLimitReached()) {
+        status.append(" - stopped at the <a href=\"preferences\">limit</a>");
+      } else if (response.getState() == Response.State.CANCELED) {
+        status.append(" - canceled");
+      }
+    }
+    return status.toString();
+  }
+
+  /**
+   * The status shown under the search fields, without the markup of its links.
+   */
+  public String getStatusText() {
+    return statusLink.getText().replaceAll("<[^>]*>", "");
+  }
+
+  private static MatchingLine getMatchingLine(Object element) {
+    if (element instanceof MatchingFile matchingFile) {
+      return List.copyOf(matchingFile.getMatchingLines()).stream().filter(line -> !line.isContext()).findFirst().orElse(null);
+    }
+    return element instanceof MatchingLine matchingLine ? matchingLine : null;
+  }
+
+  private void open(Object element) {
+    MatchingLine matchingLine = getMatchingLine(element);
+    if (matchingLine != null) {
+      SafeRunner.run(() -> showMatchingLine(matchingLine));
+    }
+  }
+
+  private void showMatchingLine(MatchingLine matchingLine) throws CoreException {
+    // the search is used: it stays in the history
+    liveRequest = null;
+    MatchingFile matchingFile = matchingLine.getMatchingFile();
+    IEditorPart editorPart;
+    if (matchingFile.getMatchingResource() instanceof IFile file) {
+      // a match can only be shown in an editor of Eclipse: not in the external program of the file type
+      IEditorDescriptor descriptor = IDE.getEditorDescriptor(file, true, true);
+      String editorId = descriptor == null || descriptor.isOpenExternal() || descriptor.isOpenInPlace()
+          ? EditorsUI.DEFAULT_TEXT_EDITOR_ID
+          : descriptor.getId();
+      editorPart = getSite().getPage().openEditor(new FileEditorInput(file), editorId, false);
+    } else {
+      editorPart = IDE.openInternalEditorOnFileStore(getSite().getPage(),
+          EFS.getLocalFileSystem().getStore(new Path(matchingFile.getFilePath())));
+      getSite().getPage().activate(this);
+    }
+    ITextEditor textEditor = Adapters.adapt(editorPart, ITextEditor.class);
+    IDocument document = textEditor != null && textEditor.getDocumentProvider() != null
+        ? textEditor.getDocumentProvider().getDocument(textEditor.getEditorInput())
+        : null;
+    if (document != null) {
+      int lineOffset = TextOffsets.lineOffset(document.get(), matchingLine.getLineNumber());
+      if (lineOffset >= 0) {
+        Span span = matchingLine.getSpans().isEmpty() ? new Span(0, 0) : matchingLine.getSpans().get(0);
+        int offset = Math.min(lineOffset + span.start(), document.getLength());
+        textEditor.selectAndReveal(offset, Math.min(span.length(), document.getLength() - offset));
+      }
+    }
+  }
+
+  /**
+   * Selects the next or the previous match and shows it in its editor.
+   */
+  private void navigate(boolean next) {
+    List<TreePath> paths = contentProvider.getMatchingLinePaths(getCurrent());
+    if (paths.isEmpty()) {
+      return;
+    }
+    TreePath[] selection = treeViewer.getStructuredSelection().getPaths();
+    int index = next ? 0 : paths.size() - 1;
+    if (selection.length > 0) {
+      TreePath selected = selection[0];
+      if (selected.getLastSegment() instanceof MatchingLine matchingLine && matchingLine.isContext()) {
+        selected = selected.getParentPath();
+      }
+      for (int i = 0; i < paths.size(); i++) {
+        if (paths.get(i).startsWith(selected, null)) {
+          // from a project, a folder or a file, the next match is its first one
+          boolean onMatch = paths.get(i).getSegmentCount() == selected.getSegmentCount();
+          index = next ? (onMatch ? i + 1 : i) : i - 1;
+          break;
+        }
+      }
+    }
+    TreePath path = paths.get(Math.floorMod(index, paths.size()));
+    treeViewer.setSelection(new TreeSelection(path), true);
+    open(path.getLastSegment());
+  }
+
+  private void removeSelected() {
+    treeViewer.getStructuredSelection().forEach(this::remove);
+    treeViewer.refresh();
+    updateStatus();
+  }
+
+  private void remove(Object element) {
+    if (element instanceof SearchedProject searchedProject) {
+      searchedProject.getResponse().getSearchedProjects().remove(searchedProject);
+    } else if (element instanceof MatchingFile matchingFile) {
+      SearchedProject searchedProject = matchingFile.getSearchProject();
+      searchedProject.getMatchingFiles().remove(matchingFile);
+      if (searchedProject.getMatchingFiles().isEmpty()) {
+        remove(searchedProject);
+      }
+    } else if (element instanceof MatchingLine matchingLine) {
+      MatchingFile matchingFile = matchingLine.getMatchingFile();
+      matchingFile.getMatchingLines().remove(matchingLine);
+      if (matchingFile.getMatchCount() == 0) {
+        remove(matchingFile);
+      }
+    } else if (element instanceof Folder folder) {
+      SearchedProject searchedProject = folder.searchProject();
+      searchedProject.getMatchingFiles().removeIf(folder::contains);
+      if (searchedProject.getMatchingFiles().isEmpty()) {
+        remove(searchedProject);
+      }
+    } else if (element instanceof SeeAll seeAll) {
+      for (Object child : contentProvider.getChildren(seeAll)) {
+        remove(child);
+      }
+    } else if (element instanceof Error error && getCurrent() != null) {
+      getCurrent().getErrors().remove(error);
+    }
+  }
+
+  /**
+   * The text copied from the selected results, a line for each one.
+   */
+  String getSelectionText() {
+    StringBuilder sb = new StringBuilder();
+    for (Object element : treeViewer.getStructuredSelection().toArray()) {
+      if (element instanceof MatchingLine matchingLine) {
+        sb.append(matchingLine.getMatchingFile().getFilePath())
+          .append(":")
+          .append(matchingLine.getLineNumber())
+          .append(": ")
+          .append(matchingLine.getLine());
+      } else if (element instanceof MatchingFile matchingFile) {
+        sb.append(matchingFile.getFilePath());
+      } else if (element instanceof Folder folder) {
+        sb.append(folder.path());
+      } else if (element instanceof SearchedProject searchedProject) {
+        sb.append(searchedProject.getName());
+      } else if (element instanceof Error error) {
+        sb.append(error.getError());
+      } else {
+        continue;
+      }
+      sb.append(System.lineSeparator());
+    }
+    return sb.toString();
+  }
+
+  private void copySelection() {
+    String text = getSelectionText();
+    if (text.isEmpty()) {
+      return;
+    }
+    Clipboard clipboard = new Clipboard(Display.getDefault());
+    try {
+      clipboard.setContents(
+          new Object[] { text },
+          new Transfer[] { TextTransfer.getInstance() });
+    } finally {
+      clipboard.dispose();
+    }
+  }
+
+  /**
+   * Opens the preview of the replacement of the matches which are still in the view.
+   *
+   * @param selectionOnly whether only the selected results are replaced
+   */
+  private void replace(boolean selectionOnly) {
+    if (currentRequest == null || getCurrent() == null) {
+      return;
+    }
+    if (!replaceItem.getSelection()) {
+      // the replacement must be seen before it is applied
+      replaceItem.setSelection(true);
+      showReplace(true);
+      replaceField.setFocus();
+      return;
+    }
+    if (!PlatformUI.getWorkbench().saveAllEditors(true)) {
+      return;
+    }
+    ReplaceRefactoring refactoring = createReplaceRefactoring(replaceField.getText(), selectionOnly);
+    RefactoringWizard wizard = new RefactoringWizard(refactoring,
+        RefactoringWizard.DIALOG_BASED_USER_INTERFACE | RefactoringWizard.PREVIEW_EXPAND_FIRST_NODE) {
+      @Override
+      protected void addUserInputPages() {
+      }
+    };
+    wizard.setDefaultPageTitle("Replace with RipGrep");
+    try {
+      if (new RefactoringWizardOpenOperation(wizard).run(getSite().getShell(), "Replace with RipGrep") == IDialogConstants.OK_ID) {
+        searchAgain();
+      }
+    } catch (InterruptedException e) {
+      // canceled
+    }
+  }
+
+  /**
+   * @param selectionOnly whether only the selected results are replaced, rather than all the results of the view
+   */
+  public ReplaceRefactoring createReplaceRefactoring(String replacement, boolean selectionOnly) {
+    List<MatchingLine> matchingLines = new ArrayList<>();
+    if (selectionOnly) {
+      treeViewer.getStructuredSelection().forEach(element -> collectMatchingLines(element, matchingLines));
+    } else {
+      collectMatchingLines(getCurrent(), matchingLines);
+    }
+    Set<String> keys = new HashSet<>();
+    matchingLines.forEach(matchingLine -> keys.add(getKey(matchingLine)));
+    Request request = new Request(currentRequest);
+    request.setReplacement(replacement);
+    request.setContextLines(0);
+    return new ReplaceRefactoring(request, Utils.getSettings(), matchingLine -> keys.contains(getKey(matchingLine)));
+  }
+
+  private static String getKey(MatchingLine matchingLine) {
+    return matchingLine.getMatchingFile().getFilePath() + ":" + matchingLine.getLineNumber();
+  }
+
+  private void collectMatchingLines(Object element, Collection<MatchingLine> matchingLines) {
+    if (element instanceof MatchingLine matchingLine) {
+      matchingLines.add(matchingLine);
+    } else if (element instanceof MatchingFile matchingFile) {
+      matchingLines.addAll(List.copyOf(matchingFile.getMatchingLines()));
+    } else if (element instanceof Response response) {
+      response.getSearchedProjects().forEach(searchedProject -> collectMatchingLines(searchedProject, matchingLines));
+    } else if (element instanceof SearchedProject searchedProject) {
+      List.copyOf(searchedProject.getMatchingFiles()).forEach(matchingFile -> collectMatchingLines(matchingFile, matchingLines));
+    } else if (element instanceof Folder folder) {
+      List.copyOf(folder.searchProject().getMatchingFiles()).stream().filter(folder::contains)
+          .forEach(matchingFile -> collectMatchingLines(matchingFile, matchingLines));
+    } else if (element instanceof SeeAll seeAll) {
+      for (Object child : contentProvider.getChildren(seeAll)) {
+        collectMatchingLines(child, matchingLines);
+      }
+    }
+  }
+
+  /**
+   * Puts the focus in the search field, to type a search.
+   */
+  public void focusSearchField() {
+    textField.setFocus();
+    textField.selectAll();
   }
 
   @Override
   public void setFocus() {
-    treeViewer.getControl().setFocus();
-  }
-
-  public void searchFor(String text, boolean caseSensitive, boolean regularExpression) {
-    Request request = new Request();
-    request.setText(text);
-    request.setCaseSensitive(caseSensitive);
-    request.setRegularExpression(regularExpression);
-    searchFor(request);
-  }
-
-  public void searchFor(Request request) {
-    currentRequest = request;
-    (currentJob = new Job("Searching for \"" + request.getText() + "\" with RipGrep ...") {
-
-      @Override
-      protected IStatus run(IProgressMonitor monitor) {
-        Display.getDefault().asyncExec(() -> {
-          textField.setText(request.getText());
-          searchAgainAction.setEnabled(false);
-          cancelSearchAction.setEnabled(true);
-          getViewSite().getActionBars().updateActionBars();
-        });
-        AtomicBoolean done = new AtomicBoolean();
-        request.setTime(System.currentTimeMillis());
-        request.setProgressMonitor(monitor);
-        request.setListener(new ProgressListener() {
-
-          @Override
-          public void update(Object element) {
-            if (treeViewer.isBusy()) {
-              return;
-            }
-            Display.getDefault().asyncExec(() -> treeViewer.refresh(element));
-          }
-
-          @Override
-          public void done() {
-            done.set(true);
-            while (treeViewer.isBusy()) {
-              try {
-                Thread.sleep(100);
-              } catch (InterruptedException e) {
-              }
-            }
-            if (!monitor.isCanceled())
-              Display.getDefault().asyncExec(() -> {
-                treeViewer.refresh(treeViewer.getInput());
-                SeeAll.clear();
-              });
-          }
-        });
-        Display.getDefault().asyncExec(() -> {
-          SeeAll.clear();
-          Folder.clear();
-          Response response = Engine.searchFor(request);
-          treeViewer.setInput(response);
-          history.put(request, response);
-          saveHistory();
-        });
-        while (!(done.get() || monitor.isCanceled())) {
-          try {
-            Thread.sleep(100);
-            Thread.yield();
-          } catch (InterruptedException e) {
-          }
-        }
-        return monitor.isCanceled() ? Status.CANCEL_STATUS : Status.OK_STATUS;
-      }
-    }).schedule();
-    currentJob.addJobChangeListener(new JobChangeAdapter() {
-
-      @Override
-      public void done(IJobChangeEvent event) {
-        Display.getDefault().asyncExec(() -> {
-          searchAgainAction.setEnabled(true);
-          cancelSearchAction.setEnabled(false);
-          getViewSite().getActionBars().updateActionBars();
-        });
-      }
-
-    });
-  }
-
-  private class ERipGrepLabelProvider extends FileLabelProvider {
-
-    private Image fLineMatchImage = SearchPluginImages.get(SearchPluginImages.IMG_OBJ_TEXT_SEARCH_LINE);
-    private Image folderImage = createImageFromURL("platform:/plugin/org.eclipse.ui.ide/icons/full/obj16/folder.png");
-    private Image fileImage = createImageFromURL(
-        "platform:/plugin/org.eclipse.ui.ide/icons/full/obj16/fileType_filter.png");
-    private Image seeAllImage = createImageFromURL(
-        "platform:/plugin/org.eclipse.search/icons/full/elcl16/hierarchicalLayout.png");
-    private Image errorImage = createImageFromURL(
-        "platform:/plugin/org.eclipse.ui.views.log/icons/eview16/error_log.png");
-
-    public ERipGrepLabelProvider() {
-      super(abstractTextSearchViewPage, SHOW_LABEL);
+    if (currentJob == null) {
+      setTitleImage(image);
     }
-
-    @Override
-    public StyledString getStyledText(Object element) {
-      if (element instanceof MatchingFile) {
-        return new StyledString(((MatchingFile) element).getFileName());
-      } else if (element instanceof MatchingLine) {
-        return getStyledTextForMatchingLine((MatchingLine) element);
-      } else if (element instanceof Folder) {
-        return new StyledString(((Folder) element).getName());
-      } else if (element instanceof Error) {
-        return new StyledString(((Error) element).getError());
+    // a click in a field of the view also activates the view: the focus stays where the user put it
+    for (Control control = Display.getCurrent().getFocusControl(); control != null; control = control.getParent()) {
+      if (control == sashForm.getParent()) {
+        return;
       }
-      return super.getStyledText(element);
     }
-
-    private StyledString getStyledTextForMatchingLine(MatchingLine matchingLine) {
-      StyledString styledString = new StyledString();
-      styledString.append(matchingLine.getLineNumber() + ": ");
-      String matString = matchingLine.getMatchingLine();
-      Matcher matcher = matchingLine.getMatcher();
-      int i = 0;
-      while (matcher.find()) {
-        String t = matString.substring(i, matcher.start());
-        styledString.append(t);
-        styledString.append(matcher.group(1), DecoratingFileSearchLabelProvider.HIGHLIGHT_STYLE);
-        i = matcher.end();
-      }
-      styledString.append(matString.substring(i, matString.length()));
-      return styledString;
+    if (getCurrent() != null && getCurrent().getFileCount() > 0) {
+      treeViewer.getControl().setFocus();
+    } else {
+      textField.setFocus();
     }
-
-    @Override
-    public Image getImage(Object element) {
-      if (element instanceof SeeAll) {
-        return seeAllImage;
-      } else if (element instanceof MatchingFile) {
-        return fileImage;
-      } else if (element instanceof MatchingLine) {
-        return fLineMatchImage;
-      } else if (element instanceof Folder) {
-        return folderImage;
-      } else if (element instanceof Error) {
-        return errorImage;
-      }
-      return super.getImage(element);
-    }
-
   }
 
-  public static LinkedHashMap<Request, Response> getHistory() {
-    return history;
+  @Override
+  public void dispose() {
+    if (currentJob != null) {
+      currentJob.cancel();
+      currentJob = null;
+    }
+    getSite().getPage().removeSelectionListener(selectionListener);
+    super.dispose();
   }
 
-  private static LinkedHashMap<Request, Response> loadHistory() {
-    LinkedHashMap<Request, Response> history = new LinkedHashMap<>();
-    Arrays.asList(Utils.getPreferences().get(HISTORY, "").split("\\|")).stream()
-          .filter(Predicate.not(String::isBlank))
-          .forEach(r -> {
-            Request request = new Request();
-            request.setText(r);
-            history.put(request, null);
-          });
+  public static History getHistory() {
     return history;
   }
 
   public void clearHistory() {
-    if (currentJob != null && currentJob.getState() == Job.RUNNING) {
-      currentJob.cancel();
-    }
+    cancelSearch();
     searchAgainAction.setEnabled(false);
     currentRequest = null;
+    liveRequest = null;
+    updatingFields = true;
     textField.setText("");
+    updatingFields = false;
     history.clear();
-    treeViewer.setInput(null);
-    saveHistory();
+    history.save();
+    showResponse(null);
   }
 
-  private void saveHistory() {
-    List<Request> requests = new ArrayList<>(history.keySet());
-    Collections.reverse(requests);
-    if (requests.size() > 25) {
-      requests = requests.subList(0, 25);
+  /**
+   * The drop down of the last searches.
+   */
+  private class HistoryAction extends Action implements IMenuCreator {
+
+    private Menu menu;
+
+    HistoryAction() {
+      super("Show Previous Searches", IAction.AS_DROP_DOWN_MENU);
+      setToolTipText("Show Previous Searches");
+      setImageDescriptor(getSearchImage("elcl16/search_history.png"));
+      setMenuCreator(this);
     }
-    String history = requests.stream().map(Request::getText).collect(Collectors.joining("|"));
-    Utils.getPreferences().put(HISTORY,
-        history);
+
+    @Override
+    public void dispose() {
+      if (menu != null) {
+        menu.dispose();
+      }
+    }
+
+    @Override
+    public Menu getMenu(Menu parent) {
+      return null;
+    }
+
+    @Override
+    public Menu getMenu(Control parent) {
+      dispose();
+      menu = new Menu(parent);
+      for (Map.Entry<Request, Response> search : history.getSearches()) {
+        Request request = search.getKey();
+        Response response = search.getValue();
+        Action action = new Action(getLabel(request), IAction.AS_RADIO_BUTTON) {
+          @Override
+          public void run() {
+            if (!isChecked()) {
+              return;
+            }
+            liveRequest = null;
+            if (response != null) {
+              cancelSearch();
+              setCurrent(request, response);
+            } else {
+              searchFor(new Request(request));
+            }
+          }
+        };
+        action.setChecked(response != null && response == getCurrent());
+        new ActionContributionItem(action).fill(menu, -1);
+      }
+      if (!history.isEmpty()) {
+        new Separator().fill(menu, -1);
+      }
+      Action clearAction = new Action("Clear History") {
+        @Override
+        public void run() {
+          if (MessageDialog.openConfirm(getSite().getShell(), "Clear History", "Remove all the searches from the history?")) {
+            clearHistory();
+          }
+        }
+      };
+      clearAction.setEnabled(!history.isEmpty());
+      new ActionContributionItem(clearAction).fill(menu, -1);
+      return menu;
+    }
+
+    private String getLabel(Request request) {
+      // "&" is the mnemonic and "@" the accelerator of the label of an action
+      String label = request.getText().replace("&", "&&").replace('\n', ' ');
+      if (label.length() > 60) {
+        label = label.substring(0, 60) + "…";
+      }
+      if (request.getTime() != -1) {
+        label += " (" + DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(new Date(request.getTime())) + ")";
+      }
+      return label.indexOf('@') >= 0 ? label + '@' : label;
+    }
+
+    @Override
+    public void runWithEvent(Event event) {
+      // a click on the button opens the menu, as a click on its arrow
+      if (event.widget instanceof ToolItem item) {
+        Rectangle bounds = item.getBounds();
+        Menu historyMenu = getMenu(item.getParent());
+        historyMenu.setLocation(item.getParent().toDisplay(bounds.x, bounds.y + bounds.height));
+        historyMenu.setVisible(true);
+      }
+    }
   }
 }

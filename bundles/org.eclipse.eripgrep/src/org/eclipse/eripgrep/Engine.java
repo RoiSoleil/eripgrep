@@ -1,176 +1,237 @@
 package org.eclipse.eripgrep;
 
-import static org.eclipse.eripgrep.utils.PreferenceConstantes.*;
-
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.*;
-import java.util.Map.Entry;
-import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.eclipse.core.resources.IProject;
-import org.eclipse.core.resources.ResourcesPlugin;
+import org.eclipse.core.resources.*;
+import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.eripgrep.core.*;
 import org.eclipse.eripgrep.model.*;
 import org.eclipse.eripgrep.model.Error;
-import org.eclipse.eripgrep.ui.UiUtils;
-import org.eclipse.eripgrep.utils.Utils;
-import org.eclipse.swt.widgets.Display;
 
 public class Engine {
 
-  public static Response searchFor(Request request) {
-    IProgressMonitor progressMonitor = request.getProgressMonitor();
-    Response response = new Response();
-    String ripGrepFilePath = Utils.getPreferences().get(RIPGREP_PATH, null);
-    if (ripGrepFilePath == null) {
-      Display.getDefault().syncExec(() -> UiUtils.openPreferencePage());
-    }
-    File ripGrepFile = new File(ripGrepFilePath);
-    boolean searchInClosedProject = Utils.getPreferences().getBoolean(SEARCH_IN_CLOSED_PROJECT, true);
-    List<IProject> openedProjects = new ArrayList<>();
-    List<IProject> closedProjects = new ArrayList<>();
-    Arrays.asList(ResourcesPlugin.getWorkspace().getRoot().getProjects())
-        .forEach(project -> (project.isOpen() ? openedProjects : closedProjects).add(project));
-    ExecutorService executorService = Executors.newFixedThreadPool(Utils.getPreferences().getInt(THREAD_NUMBER, 5));
-    Queue<IProject> projects = new ConcurrentLinkedQueue<>(openedProjects);
-    if (searchInClosedProject) {
-      projects.addAll(closedProjects);
-    }
-    LinkedHashMap<String, IProject> longerProjectByOSString = getLongerProjectByOSString(projects);
-    removeSubDirectoryProject(projects);
+  private static final int MAX_ERRORS = 20;
+
+  /**
+   * Runs RipGrep and fills the response, which can be shown while the search runs. Returns at the end of the
+   * search.
+   */
+  public static void search(Request request, Response response, RipGrepSettings settings, ProgressListener listener,
+      IProgressMonitor monitor) {
+    long start = System.nanoTime();
     try {
-      progressMonitor.beginTask("", projects.size());
-      new ArrayList<>(projects).forEach(project -> executorService.submit(() -> {
-        progressMonitor.subTask("Searching in " + project.getName());
-        try {
-          searchFor(request, response, ripGrepFile, project, longerProjectByOSString);
-        } finally {
-          projects.remove(project);
-          progressMonitor.worked(1);
-          if (projects.isEmpty()) {
-            request.getListener().done();
-            request.getProgressMonitor().done();
-          }
-        }
-      }));
-    } catch (Exception e) {
-      Activator.error(e);
+      monitor.beginTask("Searching for \"" + request.getText() + "\"", IProgressMonitor.UNKNOWN);
+      if (settings.ripGrepPath() == null) {
+        response.setRipGrepMissing(true);
+        response.getErrors().add(new Error("RipGrep was not found: install it or set its location in the preferences."));
+        return;
+      }
+      List<Path> roots = getRoots(request, settings);
+      if (!roots.isEmpty()) {
+        search(request, response, settings, listener, monitor, roots);
+      }
+    } finally {
+      response.setElapsedMillis((System.nanoTime() - start) / 1_000_000);
+      response.setState(monitor.isCanceled() ? Response.State.CANCELED : Response.State.DONE);
+      monitor.done();
+      listener.update();
     }
-    executorService.shutdown();
-    return response;
   }
 
-  private static LinkedHashMap<String, IProject> getLongerProjectByOSString(Queue<IProject> projects) {
-    LinkedHashMap<String, IProject> longerProjectByOSString = new LinkedHashMap<>();
-    List<IProject> longerProjects = new ArrayList<>(projects);
-    longerProjects.sort((p1, p2) -> -p1.getLocation().toOSString().compareTo(p2.getLocation().toOSString()));
-    longerProjects.forEach(project -> longerProjectByOSString.put(project.getLocation().toOSString(), project));
-    return longerProjectByOSString;
-  }
-
-  private static void removeSubDirectoryProject(Queue<IProject> projects) {
-    List<IProject> shorterProjects = new ArrayList<>(projects);
-    shorterProjects.sort((p1, p2) -> p1.getLocation().toOSString().compareTo(p2.getLocation().toOSString()));
-    List<IProject> longerProjects = new ArrayList<>(projects);
-    longerProjects.sort((p1, p2) -> -p1.getLocation().toOSString().compareTo(p2.getLocation().toOSString()));
-    for (IProject longerProject : longerProjects) {
-      for (IProject shorterProject : shorterProjects) {
-        if (longerProject != shorterProject && longerProject.getLocation().toOSString().contains(shorterProject.getLocation().toOSString())) {
-          projects.remove(longerProject);
-          shorterProjects.remove(longerProject);
-          break;
+  private static void search(Request request, Response response, RipGrepSettings settings, ProgressListener listener,
+      IProgressMonitor monitor, List<Path> roots) {
+    List<String> command = RipGrepCommand.build(request, settings, roots.stream().map(Path::toString).toList());
+    Process process;
+    try {
+      process = new ProcessBuilder(command).start();
+      process.getOutputStream().close();
+    } catch (IOException e) {
+      response.getErrors().add(new Error("RipGrep can not be run: " + e.getMessage()));
+      return;
+    }
+    AtomicBoolean finished = new AtomicBoolean();
+    Thread errorReader = new Thread(() -> readErrors(process, response), "ERipGrep errors");
+    errorReader.setDaemon(true);
+    errorReader.start();
+    // the search thread waits for the output of RipGrep: another one watches the cancellation
+    Thread canceler = new Thread(() -> {
+      while (!finished.get()) {
+        if (monitor.isCanceled()) {
+          process.destroy();
+          return;
         }
+        try {
+          Thread.sleep(50);
+        } catch (InterruptedException e) {
+          return;
+        }
+      }
+    }, "ERipGrep cancellation");
+    canceler.setDaemon(true);
+    canceler.start();
+    ResponseBuilder builder = new ResponseBuilder(response, settings.maxMatches(), listener);
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+      String line;
+      while (!monitor.isCanceled() && !response.isLimitReached() && (line = reader.readLine()) != null) {
+        try {
+          RipGrepOutputParser.parse(line, builder);
+        } catch (IllegalArgumentException e) {
+          // not a message of RipGrep, e.g. the output of an extra argument such as --help
+          addError(response, line);
+        }
+      }
+    } catch (IOException e) {
+      if (!monitor.isCanceled()) {
+        Activator.error(e);
+      }
+    } finally {
+      finished.set(true);
+      process.destroy();
+      try {
+        process.waitFor();
+        errorReader.join(1000);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
       }
     }
   }
 
-  private static void searchFor(Request request, Response response, File ripGrepFile,
-      IProject project, LinkedHashMap<String, IProject> longerProjectByOSString) {
-    IProgressMonitor progressMonitor = request.getProgressMonitor();
-    if (progressMonitor.isCanceled()) {
-      return;
-    }
-    File projectDirectory = new File(project.getLocation().toOSString());
-    List<String> commands = new ArrayList<>(Arrays.asList(ripGrepFile.getAbsolutePath(), request.getText(),
-        projectDirectory.getAbsolutePath(), "--color", "always", "--pretty"));
-    if (!request.isCaseSensitive()) {
-      commands.add("-i");
-    }
-    if (!request.isRegularExpression()) {
-      commands.add("--fixed-strings");
-    }
-    ProcessBuilder processBuilder = new ProcessBuilder(commands);
-    processBuilder.directory(projectDirectory);
-    try {
-      Process process = processBuilder.start();
-      new Thread(() -> {
-        try (BufferedReader br = new BufferedReader(
-            new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
-          MatchingFile matchingFile = null;
-          MatchingLine matchingLine = null;
-          String line;
-          while (!progressMonitor.isCanceled() && (line = br.readLine()) != null) {
-            if (line.isEmpty()) {
-              if (matchingFile != null) {
-                matchingFile = null;
-                request.getListener().update(response);
-              }
-            } else if (matchingFile == null) {
-              String filePath = MatchingFile.getFilePath(line);
-              SearchedProject searchProject = getOrCreateSearchProject(response, longerProjectByOSString, filePath);
-              matchingFile = new MatchingFile(searchProject, line);
-            } else {
-              if (MatchingLine.isMatchingLine(line)) {
-                matchingLine = new MatchingLine(matchingFile, line);
-              } else {
-                matchingFile.getMatchingLines().remove(matchingLine);
-                matchingLine = new MatchingLine(matchingFile, matchingLine.getLine() + line);
-              }
-            }
-          }
-          if (matchingFile != null && !matchingFile.getMatchingLines().isEmpty()) {
-            request.getListener().update(response);
-          }
-        } catch (IOException e) {
-          Activator.error(e);
+  private static void readErrors(Process process, Response response) {
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {
+      String line;
+      while ((line = reader.readLine()) != null) {
+        if (!line.isBlank()) {
+          addError(response, line);
         }
-        if (progressMonitor.isCanceled()) {
-          process.destroyForcibly();
-        }
-      }).start();
-      new Thread(() -> {
-        try (BufferedReader br = new BufferedReader(
-            new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {
-          String line;
-          StringBuilder stringBuilder = new StringBuilder();
-          while (!progressMonitor.isCanceled() && (line = br.readLine()) != null) {
-            stringBuilder.append(line + "\n");
-          }
-          if (!stringBuilder.isEmpty()) {
-            SearchedProject searchProject = getOrCreateSearchProject(response, longerProjectByOSString, project.getLocation().toOSString());
-            new Error(searchProject, stringBuilder.toString());
-          }
-        } catch (IOException e) {
-          Activator.error(e);
-        }
-      }).start();
-      process.waitFor();
-    } catch (IOException | InterruptedException e) {
-      Activator.error(e);
+      }
+    } catch (IOException e) {
+      // the process was stopped
     }
   }
 
-  private static SearchedProject getOrCreateSearchProject(Response response, LinkedHashMap<String, IProject> longerProjectByOSString, String filePath) {
-    IProject project = longerProjectByOSString.entrySet().stream()
-        .filter(entry -> filePath.contains(entry.getKey()))
-        .findFirst()
-        .map(Entry::getValue)
-        .orElse(null);
-    return response.getSearchedProjects().stream()
-        .filter(searchProject -> project.equals(searchProject.getProject()))
-        .findFirst()
-        .orElseGet(() -> new SearchedProject(response, project));
+  private static void addError(Response response, String message) {
+    if (response.getErrors().size() < MAX_ERRORS) {
+      response.getErrors().add(new Error(message));
+    }
   }
 
+  /**
+   * The directories and files given to RipGrep.
+   */
+  static List<Path> getRoots(Request request, RipGrepSettings settings) {
+    IWorkspaceRoot workspaceRoot = ResourcesPlugin.getWorkspace().getRoot();
+    List<Path> paths = new ArrayList<>();
+    if (request.getScope() == Scope.WORKSPACE) {
+      for (IProject project : workspaceRoot.getProjects()) {
+        if (project.isOpen() || settings.searchInClosedProjects()) {
+          addLocation(paths, project);
+        }
+      }
+    } else {
+      for (String scopePath : request.getScopePaths()) {
+        IResource resource = workspaceRoot.findMember(scopePath);
+        if (resource != null) {
+          addLocation(paths, resource);
+        }
+      }
+    }
+    return removeNested(paths);
+  }
+
+  private static void addLocation(List<Path> paths, IResource resource) {
+    IPath location = resource.getLocation();
+    if (location != null && location.toFile().exists()) {
+      paths.add(location.toFile().toPath());
+    }
+  }
+
+  /**
+   * A project can be in the directory of another one: RipGrep must not search it twice.
+   */
+  static List<Path> removeNested(List<Path> paths) {
+    List<Path> sorted = new ArrayList<>(new LinkedHashSet<>(paths));
+    sorted.sort(Comparator.comparingInt(Path::getNameCount));
+    List<Path> roots = new ArrayList<>();
+    for (Path path : sorted) {
+      if (roots.stream().noneMatch(path::startsWith)) {
+        roots.add(path);
+      }
+    }
+    return roots;
+  }
+
+  /**
+   * Builds the response from the output of RipGrep.
+   */
+  private static class ResponseBuilder implements RipGrepOutputHandler {
+
+    private final Response response;
+    private final int maxMatches;
+    private final ProgressListener listener;
+
+    /**
+     * The projects, the deepest first: a file belongs to the deepest project containing it.
+     */
+    private final List<Map.Entry<Path, IProject>> projects = new ArrayList<>();
+    private final Map<Path, SearchedProject> searchedProjects = new HashMap<>();
+
+    private MatchingFile matchingFile;
+    private int matchCount;
+
+    ResponseBuilder(Response response, int maxMatches, ProgressListener listener) {
+      this.response = response;
+      this.maxMatches = maxMatches;
+      this.listener = listener;
+      for (IProject project : ResourcesPlugin.getWorkspace().getRoot().getProjects()) {
+        IPath location = project.getLocation();
+        if (location != null) {
+          projects.add(Map.entry(location.toFile().toPath(), project));
+        }
+      }
+      projects.sort(Comparator.comparingInt(entry -> -entry.getKey().getNameCount()));
+    }
+
+    @Override
+    public void begin(String path) {
+      matchingFile = new MatchingFile(getSearchedProject(Path.of(path)), path);
+    }
+
+    @Override
+    public void line(String path, long lineNumber, String text, List<Span> spans, List<String> replacements) {
+      if (matchingFile == null || !matchingFile.getFilePath().equals(path)) {
+        begin(path);
+      }
+      new MatchingLine(matchingFile, lineNumber, text, spans, replacements);
+      matchCount += spans.size();
+      if (maxMatches > 0 && matchCount >= maxMatches) {
+        response.setLimitReached(true);
+      }
+    }
+
+    @Override
+    public void end(String path) {
+      matchingFile = null;
+      listener.update();
+    }
+
+    @Override
+    public void summary(long searchedFiles) {
+      response.setSearchedFiles(searchedFiles);
+    }
+
+    private SearchedProject getSearchedProject(Path file) {
+      for (Map.Entry<Path, IProject> entry : projects) {
+        if (file.startsWith(entry.getKey())) {
+          return searchedProjects.computeIfAbsent(entry.getKey(), location -> new SearchedProject(response, entry.getValue(), location));
+        }
+      }
+      Path root = file.getRoot() != null ? file.getRoot() : file;
+      return searchedProjects.computeIfAbsent(root, location -> new SearchedProject(response, null, location));
+    }
+  }
 }

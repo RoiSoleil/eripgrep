@@ -3,9 +3,12 @@ on:
    push:
       branches:
       - main
+   pull_request:
+permissions:
+   contents: write
 jobs:
    build:
-      runs-on: windows-latest
+      runs-on: ubuntu-latest
       steps:
       -  name: Checkout
          uses: actions/checkout@v5
@@ -25,20 +28,28 @@ jobs:
            key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
            restore-keys: |
              ${{ runner.os }}-maven-
+      -  name: Install RipGrep
+         run: sudo apt-get update && sudo apt-get install -y ripgrep
       -  name: Build
-         run: |
-            mvn clean install
-         shell: bash
-      -  name: Release
-         uses: "marvinpinto/action-automatic-releases@latest"
+         # The tests of the view run in a workbench: they need a display.
+         run: xvfb-run -a mvn -B clean install
+      -  name: Upload the test reports
+         if: failure()
+         uses: actions/upload-artifact@v4
          with:
-             repo_token: "${{ secrets.GITHUB_TOKEN }}"
-             automatic_release_tag: "latest"
-             prerelease: true
-             title: "Development Build"
-             files: |
-               ./update-site/org.eclipse.eripgrep/target/org.eclipse.eripgrep.updatesite-*-SNAPSHOT.zip
+            name: surefire-reports
+            path: tests/org.eclipse.eripgrep.tests/target/surefire-reports
+      -  name: Release
+         if: github.event_name == 'push'
+         env:
+            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+         run: |
+            gh release delete latest --yes --cleanup-tag || true
+            gh release create latest --prerelease --title "Development Build" --target "$GITHUB_SHA" \
+               --notes "Latest build of the main branch." \
+               update-site/org.eclipse.eripgrep/target/org.eclipse.eripgrep.updatesite-*-SNAPSHOT.zip
       -  name: Publish p2 update site
+         if: github.event_name == 'push'
          env:
             ACTIONS_TOKEN: ${{ secrets.ACTIONS_TOKEN }}
          run: |-
