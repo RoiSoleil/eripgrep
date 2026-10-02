@@ -66,6 +66,10 @@ public class ReplaceRefactoring extends Refactoring {
       status.addFatalError(response.getErrors().get(0).getError());
       return status;
     }
+    if (request.isRegularExpression() && !hasReplacements(response)) {
+      status.addFatalError("Replacing a regular expression needs RipGrep 15 or newer.");
+      return status;
+    }
     int outsideWorkspace = 0;
     int modified = 0;
     for (SearchedProject searchedProject : response.getSearchedProjects()) {
@@ -95,6 +99,22 @@ public class ReplaceRefactoring extends Refactoring {
   }
 
   /**
+   * Whether RipGrep gave the replacements of its matches, or found no match.
+   */
+  private static boolean hasReplacements(Response response) {
+    for (SearchedProject searchedProject : response.getSearchedProjects()) {
+      for (MatchingFile matchingFile : List.copyOf(searchedProject.getMatchingFiles())) {
+        for (MatchingLine matchingLine : List.copyOf(matchingFile.getMatchingLines())) {
+          if (!matchingLine.isContext()) {
+            return !matchingLine.getReplacements().isEmpty();
+          }
+        }
+      }
+    }
+    return true;
+  }
+
+  /**
    * @return the number of matches which can not be replaced
    */
   private int addChange(IFile file, List<MatchingLine> matchingLines) throws CoreException {
@@ -105,12 +125,14 @@ public class ReplaceRefactoring extends Refactoring {
       int lineOffset = TextOffsets.lineOffset(content, matchingLine.getLineNumber());
       for (int i = 0; i < matchingLine.getSpans().size(); i++) {
         Span span = matchingLine.getSpans().get(i);
-        if (matchingLine.getReplacements().size() <= i || lineOffset < 0
+        if (lineOffset < 0
             || !content.regionMatches(lineOffset + span.start(), matchingLine.getLine(), span.start(), span.length())) {
           skipped++;
           continue;
         }
-        edit.addChild(new ReplaceEdit(lineOffset + span.start(), span.length(), matchingLine.getReplacements().get(i)));
+        // RipGrep gives the replacements since its version 15: before, only a plain text can be replaced
+        String replacement = matchingLine.getReplacements().size() > i ? matchingLine.getReplacements().get(i) : request.getReplacement();
+        edit.addChild(new ReplaceEdit(lineOffset + span.start(), span.length(), replacement));
         replacementCount++;
       }
     }

@@ -29,7 +29,11 @@ jobs:
            restore-keys: |
              ${{ runner.os }}-maven-
       -  name: Install RipGrep
-         run: sudo apt-get update && sudo apt-get install -y ripgrep
+         # The replacement of a regular expression needs RipGrep 15, newer than the one of the distribution.
+         run: |
+            curl -sfLO https://github.com/BurntSushi/ripgrep/releases/download/15.1.0/ripgrep_15.1.0-1_amd64.deb
+            sudo dpkg -i ripgrep_15.1.0-1_amd64.deb
+            rg --version
       -  name: Build
          # The tests of the view run in a workbench: they need a display.
          run: xvfb-run -a mvn -B clean install

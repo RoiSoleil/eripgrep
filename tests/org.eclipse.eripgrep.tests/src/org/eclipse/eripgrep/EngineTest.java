@@ -86,7 +86,8 @@ class EngineTest {
     assertEquals(Response.State.DONE, response.getState());
     assertEquals(5, response.getMatchCount());
     assertEquals(2, response.getFileCount());
-    assertEquals(3, response.getSearchedFiles());
+    // the files without match are counted or not, depending on the version of RipGrep
+    assertTrue(response.getSearchedFiles() >= 2);
     assertFalse(response.isLimitReached());
     assertTrue(response.getErrors().isEmpty());
     MatchingFile matchingFile = response.getSearchedProjects().peek().getMatchingFiles().stream()

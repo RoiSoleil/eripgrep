@@ -15,7 +15,7 @@ Without a selection, the same shortcut opens the view, ready to type a search.
 - Case sensitive, whole word and regular expression searches, over several lines too.
 - **Replace with a preview**: the matches which are still in the view, or only the selected ones, are replaced
   after a preview of the changes, and the replacement can be undone. RipGrep computes the replacements: a regular
-  expression uses `$1` or `$name` for its groups.
+  expression uses `$1` or `$name` for its groups (RipGrep 15 or newer; older versions replace plain text only).
 - Filter on the files: `*.java, .xml, !test/` (globs separated by commas, a leading `!` excludes).
 - Scope of the search: the workspace, the selected resources or the project of the editor.
 - **Preview** of the lines around the selected match, beside or below the results.
