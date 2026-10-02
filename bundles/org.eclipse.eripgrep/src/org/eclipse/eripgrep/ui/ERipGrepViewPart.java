@@ -345,7 +345,7 @@ public class ERipGrepViewPart extends ViewPart {
   }
 
   private void createTreeViewer(Composite parent) {
-    treeViewer = new TreeViewer(parent, SWT.MULTI | SWT.H_SCROLL | SWT.V_SCROLL);
+    treeViewer = new TreeViewer(parent, SWT.MULTI | SWT.H_SCROLL | SWT.V_SCROLL | SWT.BORDER);
     treeViewer.setUseHashlookup(true);
     treeViewer.setContentProvider(contentProvider);
     treeViewer.setLabelProvider(new DelegatingStyledCellLabelProvider(new ResultLabelProvider(contentProvider)));
