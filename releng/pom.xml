@@ -9,6 +9,9 @@
 		<tycho.version>5.0.4</tycho.version>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<eclipse-repo.url>https://download.eclipse.org/releases/latest</eclipse-repo.url>
+		<jacoco.version>0.8.15</jacoco.version>
+		<!-- JaCoCo agent of the tests (set by jacoco:prepare-agent), used by tycho-surefire -->
+		<tycho.testArgLine></tycho.testArgLine>
 	</properties>
 	<repositories>
 		<repository>
@@ -19,6 +22,26 @@
 	</repositories>
 	<build>
 		<plugins>
+			<!-- Coverage of the tests, reported by tests/org.eclipse.eripgrep.coverage for Codecov -->
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>${jacoco.version}</version>
+				<executions>
+					<execution>
+						<id>prepare-agent</id>
+						<goals>
+							<goal>prepare-agent</goal>
+						</goals>
+						<configuration>
+							<propertyName>tycho.testArgLine</propertyName>
+							<includes>
+								<include>org.eclipse.eripgrep.*</include>
+							</includes>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
 			<plugin>
 				<groupId>org.eclipse.tycho</groupId>
 				<artifactId>tycho-maven-plugin</artifactId>

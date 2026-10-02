@@ -1,6 +1,7 @@
 # <img src="docs/logo.png" width="40" align="top" alt=""> ERipGrep : A plugin to search in Eclipse workspace using the amazing [RipGrep](https://github.com/BurntSushi/ripgrep).
 
 [![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/RoiSoleil/eripgrep/build.yml)](https://github.com/RoiSoleil/eripgrep/actions/workflows/build.yml)
+[![codecov](https://codecov.io/gh/RoiSoleil/eripgrep/branch/main/graph/badge.svg)](https://codecov.io/gh/RoiSoleil/eripgrep)
 [![GitHub](https://img.shields.io/github/license/RoiSoleil/eripgrep)](LICENSE)
 
 To start a search with ERipGrep, select a text in an editor and hit "Ctrl+Alt+Shift+G" and let RipGrep do the magic.
@@ -48,6 +49,9 @@ mvn clean install   # update site in update-site/org.eclipse.eripgrep/target/rep
 The tests of the view run in an Eclipse workbench: a window opens on the current display (use `xvfb-run` on a
 server), `-DskipTests` skips them. `GDK_BACKEND=x11 ERIPGREP_SCREENSHOT=$PWD/docs/screenshot.png mvn verify`
 saves the picture of the view shown above.
+
+JaCoCo measures the coverage of the plug-in by the tests; `tests/org.eclipse.eripgrep.coverage` writes the report in
+`target/site/jacoco-aggregate` and GitHub Actions sends it to [Codecov](https://codecov.io/gh/RoiSoleil/eripgrep).
 
 The icons are drawn by `tools/MakeIcon.java` (same drawing as `icons/eripgrep.svg`):
 

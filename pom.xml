@@ -14,5 +14,6 @@
 		<module>tests/org.eclipse.eripgrep.tests</module>
 		<module>features/org.eclipse.eripgrep</module>
 		<module>update-site/org.eclipse.eripgrep</module>
+		<module>tests/org.eclipse.eripgrep.coverage</module>
 	</modules>
 </project>
