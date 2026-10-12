@@ -489,7 +489,7 @@ class ERipGrepViewPartTest {
       PreferencePage preferencePage = (PreferencePage) dialog.getSelectedPage();
       Label version = find(preferencePage.getControl(), Label.class, label -> label.getText().startsWith("ripgrep "));
       assertNotNull(version);
-      Text path = find(preferencePage.getControl(), Text.class, text -> "Found on the PATH if empty".equals(text.getMessage()));
+      Text path = find(preferencePage.getControl(), Text.class, text -> "Found automatically if empty".equals(text.getMessage()));
       path.setText(new File("missing-rg").getAbsolutePath());
       assertEquals("RipGrep is not found.", version.getText());
     } finally {

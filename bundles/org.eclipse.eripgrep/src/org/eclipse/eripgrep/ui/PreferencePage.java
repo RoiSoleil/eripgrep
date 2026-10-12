@@ -29,7 +29,7 @@ public class PreferencePage extends FieldEditorPreferencePage implements IWorkbe
   protected void createFieldEditors() {
     Composite parent = getFieldEditorParent();
     ripGrepPathEditor = new FileFieldEditor(RIPGREP_PATH, "&Rip grep binary : ", parent);
-    ripGrepPathEditor.getTextControl(parent).setMessage("Found on the PATH if empty");
+    ripGrepPathEditor.getTextControl(parent).setMessage("Found automatically if empty");
     ripGrepPathEditor.getTextControl(parent).addModifyListener(e -> updateVersion());
     addField(ripGrepPathEditor);
     versionLabel = new Label(parent, SWT.NONE);
