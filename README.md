@@ -28,7 +28,10 @@ Without a selection, the same shortcut opens the view, ready to type a search.
   (green dot).
 - Closed projects are searched too (see the preferences).
 
-RipGrep is found on the `PATH`; its location, the number of threads, the maximum number of matches and additional
+RipGrep is found automatically on the `PATH` or, when Eclipse is launched from a desktop shortcut that does not see
+the `PATH` of your shell, in the usual install directories (`~/.cargo/bin`, Homebrew, scoop, winget, Chocolatey, the `usr\bin` of
+Git for Windows...); its
+location, the number of threads, the maximum number of matches and additional
 arguments of RipGrep are in *Window > Preferences > ERipGrep*.
 
 # Update Site
